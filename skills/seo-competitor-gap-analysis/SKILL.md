@@ -10,25 +10,25 @@ Identify the specific keywords your competitors rank for in the top 20 that your
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - User provides: (a) target domain, (b) 3 to 5 competitor domains (or ask the skill to auto-discover them), (c) market country (default: `us`), and optionally filters (min volume, max KD, intent).
 
 ## Process
 
-1. **Validate or discover competitors** `DATA_getDomainCompetitors`
+1. **Validate or discover competitors** `dataforseo_labs_google_competitors_domain`
    - If the user did not provide competitors, pull the top 5 organic competitors for the target in the target market.
    - Surface the list to the user and ask them to confirm or override before proceeding.
    - **Note:** the upstream API does not support `limit`/`offset`, so this call returns the full set (~60KB for popular domains) and the MCP harness writes it to a file. Read that file path, parse the `{data: [...]}` JSON, sort by `common_keywords` desc, and take the top 5.
 
-2. **Pull competitor keyword sets** `DATA_getDomainKeywords`
+2. **Pull competitor keyword sets** `dataforseo_labs_google_ranked_keywords`
    - For each competitor, pull keywords where they rank in the top 20 of the target country.
    - Save per-competitor lists.
 
-3. **Pull target keyword set** `DATA_getDomainKeywords`
+3. **Pull target keyword set** `dataforseo_labs_google_ranked_keywords`
    - For the target domain, pull all ranking keywords in the target country (any position).
    - This is the exclusion set.
 
-4. **Compute the gap** `DATA_getDomainKeywordsComparison` (cross-check)
+4. **Compute the gap** `dataforseo_labs_google_domain_intersection` (cross-check)
    - Keywords ranked by at least one competitor in the top 20 but not ranked by the target domain at all.
    - Use the comparison endpoint as a cross-check.
 
@@ -101,7 +101,7 @@ Keywords where competitors rank in positions 5 to 20 with thin content, low DT, 
 ## Recommended next steps
 1. Run `content-brief` on the top 3 opportunities to generate writer-ready briefs.
 2. Run `keyword-cluster-planner` on the full gap list to build a sequencing plan.
-3. Add the gap keywords to an SE Ranking project for rank tracking once content ships.
+3. Add the gap keywords to a DataForSEO project for rank tracking once content ships.
 
 ## Files
 - gaps.csv: full gap list for spreadsheet analysis
@@ -113,8 +113,7 @@ Keywords where competitors rank in positions 5 to 20 with thin content, low DT, 
 
 ## Tips
 
-- Data API rate limit: 10 requests per second. For large sites, `DATA_getDomainKeywords` may paginate heavily; set a ceiling (e.g., top 1,000 keywords per domain) unless the user explicitly asks for the full set.
-- Call `DATA_getCreditBalance` before running. A full pass on 10 seeds typically consumes 30–80 credits; 20 seeds can exceed 150.
+- Data API rate limit: 10 requests per second. For large sites, `dataforseo_labs_google_ranked_keywords` may paginate heavily; set a ceiling (e.g., top 1,000 keywords per domain) unless the user explicitly asks for the full set.
 - The `competitors_ranking` count is the best signal of realism. Keywords ranked by 4 of 5 competitors are validated opportunities; keywords ranked by only 1 may be noise.
 - Do not recommend capturing branded competitor keywords unless the user explicitly asks. Pivoting to compete on "competitor brand review" is a viable strategy but only if the user opts in.
 - When many gap keywords cluster around a theme, recommend a hub page plus cluster rather than 50 individual articles.

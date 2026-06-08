@@ -6,32 +6,31 @@ description: URL-level SEO intelligence — which keywords this page ranks for, 
 
 # Page Intelligence
 
-Show what a single URL ranks for, what traffic it captures, where its weak and strong points are, and what to do about it. The deliverable is an opinionated verdict — **KEEP**, **REFRESH**, **CONSOLIDATE**, or **KILL** — anchored in objective signals from SE Ranking's URL-level data.
+Show what a single URL ranks for, what traffic it captures, where its weak and strong points are, and what to do about it. The deliverable is an opinionated verdict — **KEEP**, **REFRESH**, **CONSOLIDATE**, or **KILL** — anchored in objective signals from DataForSEO's URL-level data.
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available (for the page-level HTML sense-check).
 - User provides: (a) a target URL, optionally (b) target market country (default: `us`), (c) primary topical keyword (auto-inferred from `<title>` + `<h1>` if not supplied).
 
 ## Process
 
-1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (credit balance, Firecrawl availability, Google APIs). Skill-specific notes:
+1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (Firecrawl availability, Google APIs). Skill-specific notes:
    - Confirm the URL is fetchable; derive parent domain. If the user supplied a primary keyword, use it; otherwise infer it in step 3.
-   - Estimated SE Ranking cost for this skill: ~10–15 credits typical (URL overview, ranking keywords, page authority, SERP context for top 3–5 keywords).
-   - Firecrawl: optional with WebFetch fallback, ~1 Firecrawl credit if available. When available, step 6 recovers `og:*`, `twitter:*`, canonical, robots meta, JSON-LD types, and hreflang count from raw `<head>` — WebFetch returns markdown only and strips those fields. Without Firecrawl, the affected lines in `PAGE.md` emit `(skipped — Firecrawl not installed)`. Pass `--no-firecrawl` to treat Firecrawl as unavailable even when installed (credit conservation).
+   - Firecrawl: optional with WebFetch fallback, ~1 Firecrawl credit if available. When available, step 6 recovers `og:*`, `twitter:*`, canonical, robots meta, JSON-LD types, and hreflang count from raw `<head>` — WebFetch returns markdown only and strips those fields. Without Firecrawl, the affected lines in `PAGE.md` emit `(skipped — Firecrawl not installed)`. Pass `--no-firecrawl` to treat Firecrawl as unavailable even when installed.
    - Google APIs: tier 1 (GSC available) unlocks step 4b (GSC URL performance + URL Inspection) after the page-authority step. See `skills/seo-google/references/cross-skill-integration.md` § "seo-page" for the full recipe.
 
-2. **URL-level overview** `DATA_getUrlOverviewWorldwide`
+2. **URL-level overview** `dataforseo_labs_google_domain_rank_overview`
    - Pull keyword count, organic traffic estimate, paid keyword count, paid traffic estimate, top regions.
    - Note: traffic estimates are directional — they don't replace Google Search Console.
 
-3. **Ranking keywords** `DATA_getDomainKeywords` (use the `url` param for exact match — not `filter_url`)
+3. **Ranking keywords** `dataforseo_labs_google_ranked_keywords` (use the `url` param for exact match)
    - Pull every keyword the URL ranks for in the target country, with positions.
    - Sort by traffic-weighted score: `volume × CTR-by-position` (use a standard CTR curve: 1=28%, 2=15%, 3=11%, 4=8%, 5=7%, 6=5%, 7=4%, 8=3%, 9=2%, 10=2%, 11+=1%).
    - Take the top 3–5 as the URL's "primary keywords" for SERP work in step 5.
 
-4. **Page authority** `DATA_getPageAuthority` + `DATA_getPageAuthorityHistory`
+4. **Page authority** `backlinks_summary` + `backlinks_timeseries_summary`
    - Current PA score and its 12-month trajectory.
    - Flag any drop > 5 points in the last 90 days.
 
@@ -41,16 +40,16 @@ Show what a single URL ranks for, what traffic it captures, where its weak and s
      `python3 scripts/gsc_query.py --property "{config.default_property}" --url "{target_url}" --days 28 --json`
    - Pull URL Inspection (real indexation status, canonical Google sees, last crawl date):
      `python3 scripts/gsc_inspect.py "{target_url}" --site-url "{config.default_property}" --json`
-   - If the URL's domain isn't a verified GSC property: surface "GSC: {target_domain} not verified — add it in Search Console" and continue with SE Ranking data only.
+   - If the URL's domain isn't a verified GSC property: surface "GSC: {target_domain} not verified — add it in Search Console" and continue with DataForSEO data only.
    - Surface in `PAGE.md` "## Snapshot": `GSC last 28d: {clicks}/{impressions}/{ctr}% CTR / pos {position}` and `Google sees: {INDEXED|EXCLUDED} · canonical {userCanonical} → {googleCanonical} · last crawled {date}`.
    - **Feed into the verdict heuristic:** `INDEXED` + impressions > 100 + position 4–10 → harden REFRESH (clear quick-win). `EXCLUDED` (any reason) → harden KILL or CONSOLIDATE. `userCanonical ≠ googleCanonical` → flag as critical issue regardless of verdict.
    - See `skills/seo-google/references/cross-skill-integration.md` § "seo-page" for the full recipe.
 
-5. **SERP context** `DATA_getSerpResults` and `DATA_getAiOverview`
+5. **SERP context** `serp_organic_live_advanced`
    - For each of the 3–5 primary keywords:
      - Top 10 organic results (URL, title, snippet).
      - SERP features present (PAA, image carousel, video, shopping, etc.).
-     - AIO presence and citations — is this URL cited in the AIO?
+     - AIO presence and citations — is this URL cited in the AIO? (AI overview items are returned in the same response.)
 
 6. **HTML sense-check** `WebFetch` (always) + `mcp__firecrawl-mcp__firecrawl_scrape` (when available)
    - **WebFetch first** (free, instant): extract `<title>`, meta description, all `<h1..h6>`, lang, word count, internal-link count, image count. WebFetch returns markdown so anything in `<head>` beyond `<title>` is lost — the next bullet recovers it.
@@ -61,14 +60,14 @@ Show what a single URL ranks for, what traffic it captures, where its weak and s
    - **If Firecrawl unavailable:** the WebFetch portion still runs; populate Page basics' OG / Twitter / canonical / robots / JSON-LD / hreflang lines as `(skipped — Firecrawl not installed)`. Don't infer from markdown.
    - **Sense-check:** does the page actually talk about its top-ranking keyword in title and H1? If a page ranks for keywords it doesn't address textually, that's a strong consolidation signal.
 
-7. **Domain context** `DATA_getDomainOverviewWorldwide` (parent domain)
+7. **Domain context** `dataforseo_labs_google_domain_rank_overview` (parent domain)
    - Light-weight: parent DA, total keywords, total traffic. Used to contextualise the page's PA against its domain.
 
-8. **Cannibalization check** `DATA_getDomainPages`
+8. **Cannibalization check** `dataforseo_labs_google_relevant_pages`
    - Pull the parent domain's pages ranked by organic traffic. Cap at the top 50 — that's where the cannibalization risk concentrates.
    - For the candidate URL's top-3 traffic-weighted keywords (from step 3), scan the peer-page list: does any other URL on the same domain rank in the top 20 for any of those keywords?
    - **Cannibalization signal:** any peer URL ranking ≤ 20 for the candidate's top-3 keywords. Record peer URL, keyword, peer position vs candidate position, peer traffic.
-   - **Cheaper than the old approach.** Previous versions cross-checked via `DATA_getDomainKeywords` on the parent domain — that endpoint can return tens of thousands of rows on large sites and is unnecessarily heavy for this question. `DATA_getDomainPages` ranked by traffic surfaces the high-impact peers directly.
+   - **Efficient approach.** `dataforseo_labs_google_relevant_pages` ranked by traffic surfaces the high-impact peers directly without pulling tens of thousands of rows.
    - If no peer URL competes, this signal is "no cannibalization detected" — pass through to step 9.
 
 9. **Synthesise verdict**
@@ -86,9 +85,9 @@ seo-page-{target-slug}-{YYYYMMDD}/
 ├── keywords.csv                  (full keyword list with positions — load-bearing CSV the auditor walks through row-by-row)
 ├── 04-serp-context.md            (top 10 + AIO for top 3–5 keywords — load-bearing reference for SERP-driven REFRESH discussions)
 └── evidence/
-    ├── 01-url-overview.md        (raw DATA_getUrlOverviewWorldwide)
-    ├── 02-keywords.md             (raw DATA_getDomainKeywords filtered)
-    ├── 03-authority.md            (PA + history)
+    ├── 01-url-overview.md        (raw dataforseo_labs_google_domain_rank_overview)
+    ├── 02-keywords.md             (raw dataforseo_labs_google_ranked_keywords filtered)
+    ├── 03-authority.md            (backlinks_summary + backlinks_timeseries_summary)
     ├── 05-page-snapshot.md        (HTML extracts)
     └── 06-cannibalization.md      (peer pages on the same domain competing for the top-3 keywords)
 ```
@@ -163,8 +162,7 @@ Reasoning: {1–2 sentences anchored in objective signals from above}.
 
 ## Tips
 
-- Respect SE Ranking Data API rate limit: 10 requests per second. The 3–5 SERP queries in step 5 should be paced sequentially.
-- Call `DATA_getCreditBalance` before running. ~10–15 credits is typical for one URL.
+- Respect DataForSEO API rate limit. The 3–5 SERP queries in step 5 should be paced sequentially.
 - Verdict heuristic:
   - **KEEP**: PA stable or up; traffic stable or up; top 3 keywords held in their positions; AIO citations present where AIO appears.
   - **REFRESH**: any of (PA dropped >5 in 90 days; traffic dropped >20%; a top-3 keyword fell to position 11+; AIO citations missing while competitors get cited). **Hardens** when GSC data (step 4b) shows `INDEXED` + impressions > 100 + average position 4–10 (clear quick-win territory).
@@ -175,4 +173,4 @@ Reasoning: {1–2 sentences anchored in objective signals from above}.
 - When between KEEP and REFRESH, default to REFRESH — small refreshes compound.
 - The `keywords.csv` is the auditable trail. If a stakeholder questions the verdict, walk them through the CSV row by row.
 - For pages with very low data (new pages, <5 ranking keywords), the verdict is unreliable. Flag as "insufficient data — re-run after 60 days" rather than forcing a verdict.
-- **`DATA_getPageAuthorityHistory` all-zeros caveat:** if the endpoint returns `inlink_rank: 0` (or equivalent) for every date in the history window, treat as "insufficient history" — don't claim a drop or recommend REFRESH based on it. Often happens for very high-authority pages where the metric is saturated, or for URLs that haven't accumulated enough longitudinal data. Cross-check with `DATA_getPageAuthority` (current value) — if current PA is meaningful but history is flat-zero, flag the gap explicitly in `PAGE.md` rather than synthesising a trajectory.
+- **`backlinks_timeseries_summary` all-zeros caveat:** if the endpoint returns zero rank values for every date in the history window, treat as "insufficient history" — don't claim a drop or recommend REFRESH based on it. Often happens for very high-authority pages where the metric is saturated, or for URLs that haven't accumulated enough longitudinal data. Cross-check with `backlinks_summary` (current value) — if current authority is meaningful but history is flat-zero, flag the gap explicitly in `PAGE.md` rather than synthesising a trajectory.

@@ -11,7 +11,7 @@ Detect, validate, and generate Schema.org JSON-LD for a page. Output is paste-re
 ## Prerequisites
 
 - **Required for detect/validate paths:** `mcp__firecrawl-mcp__firecrawl_scrape` (raw HTML access). WebFetch returns markdown only — every `<script type="application/ld+json">` block is stripped before the skill ever sees it. Without Firecrawl, the skill can still generate new schema from intent detection (steps 4–6) but cannot detect or validate what's already on the page (steps 2–3, 7).
-- Optional: SE Ranking MCP server (used in step 7 for benchmarking competitor schema).
+- Optional: DataForSEO MCP server (used in step 7 for benchmarking competitor schema).
 - User provides: a target URL. Optionally a hint about page intent ("this is a product page", "this is a how-to") if the URL pattern doesn't make it obvious.
 
 ## Process
@@ -55,7 +55,7 @@ Detect, validate, and generate Schema.org JSON-LD for a page. Output is paste-re
    - Re-run the same validation rubric from step 3 on the generated blocks.
    - Surface any required fields still marked `{REPLACE: ...}`.
 
-7. **Optional: benchmark against top SERP results** `DATA_getSerpResults` + `mcp__firecrawl-mcp__firecrawl_scrape`
+7. **Optional: benchmark against top SERP results** `serp_organic_live_advanced` + `mcp__firecrawl-mcp__firecrawl_scrape`
    - Identify the page's primary keyword (from `<title>` or user input).
    - Pull top 10 organic results.
    - **If Firecrawl available:** scrape each of the top 10 (10 Firecrawl credits). For each, parse JSON-LD blocks from the returned `html` and list detected `@type`s. This produces real schema data, not inferences from markdown.
@@ -135,5 +135,5 @@ seo-schema-{target-slug}-{YYYYMMDD}/
 - `references/google-rich-results.md` is dated. If it's >6 months old when you run this skill, flag staleness in the output and recommend the user verify against current docs.
 - **Don't mark up content that isn't visibly on the page.** Google penalises hidden-content schema. If a page doesn't actually have FAQs visible, don't generate FAQPage schema.
 - For Article schema, `image` is required. If the page has no obvious hero image, leave the `{REPLACE: hero image URL}` placeholder rather than guessing.
-- The skill is read-mostly on the SE Ranking side: zero SE Ranking credits unless step 7 (competitor benchmark) is requested — that adds ~5–10 SE Ranking credits for `DATA_getSerpResults`. Firecrawl costs are separate: 1 credit for the target URL, +10 credits when step 7 runs.
+- The skill makes no DataForSEO calls unless step 7 (competitor benchmark) is requested — that calls `serp_organic_live_advanced` for the primary keyword. Firecrawl costs are separate: 1 credit for the target URL, +10 credits when step 7 runs.
 - **Verify after deploy:** once the generated schema is pasted into your CMS and re-deployed, re-run this skill on the same URL — the new run's "Currently present" section reflects the live state and confirms the schema actually rendered (vs sitting in the CMS but not yet pushed). Ad-hoc alternative: invoke `seo-firecrawl` on the URL and grep `META.md` for the expected `@type`s.

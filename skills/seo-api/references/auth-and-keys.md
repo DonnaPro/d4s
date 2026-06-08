@@ -1,182 +1,148 @@
 # Auth & Keys
 
-The full picture of how to authenticate against SE Ranking's APIs and the MCP server. Used by the `seo-api` skill to answer "how do I auth", "where does the key come from", "what's the OAuth flow", and "how do I run this headlessly in CI".
+How DataForSEO authentication works via the MCP server and the REST API directly.
 
-## Key types — single source of truth
+## Auth method — HTTP Basic Auth
 
-As of 2026, **one API key authenticates everything**. The legacy split into separate Data and Project keys is gone. The same UUID-format key works against:
+DataForSEO uses **HTTP Basic Auth** on every request. There is no OAuth, no API key header, no Bearer token — just a username and password pair.
 
-- All `DATA_*` MCP tools and the underlying `/v1/backlinks/*`, `/v1/domain/*`, `/v1/keywords/*`, `/v1/serp/*`, `/v1/audit/*`, `/v1/ai-search/*`, `/v1/account/*` REST endpoints.
-- All `PROJECT_*` MCP tools and the underlying `/v1/projects/*`, `/v1/projects/{id}/keywords/*`, `/v1/projects/{id}/audits/*`, `/v1/projects/{id}/backlinks/*`, `/v1/projects/{id}/airt/*`, `/v1/account/*` REST endpoints.
-
-Get keys at: <https://online.seranking.com/admin.api.dashboard.html>.
-
-You can mint multiple keys per account — useful for splitting rate-limit budgets across environments (dev, staging, prod) or workloads (research vs. recurring jobs).
-
-### Required plan
-
-- **Data API access** ships with: any plan that has API credits — Business / Enterprise plans (100K credits/month included), API add-on (1M+), or standalone API plan (1M+).
-- **Project API access** requires: Business or Enterprise plan. The Project API consumes plan limits ("Sites", "Keywords", "Audit Pages", "AIRT Prompts") rather than credits.
-
-If the user is on Essential or Pro, Project API tools will return `403 Subscription required`. Surface the upgrade link: <https://seranking.com/subscription.html>.
-
-## REST API auth
-
-### Recommended — Authorization header
-
-```bash
-curl -X GET 'https://api.seranking.com/v1/account/subscription' \
-  -H 'Authorization: Token YOUR_API_KEY'
+```
+Authorization: Basic base64(username:password)
 ```
 
-Token scheme prefix is **`Token`**, not `Bearer`.
+The MCP server reads credentials from two environment variables at startup:
 
-### Fallback — query parameter
-
-```bash
-curl -X GET 'https://api.seranking.com/v1/account/subscription?apikey=YOUR_API_KEY'
-```
-
-Avoid the query param in production — it leaks the key into access logs, browser history, and HTTP referrers. Header is always preferred.
-
-### Liveness check
-
-The cheapest way to confirm a key is valid (0 credits):
-
-```bash
-curl -X GET 'https://api.seranking.com/v1/account/subscription' \
-  -H 'Authorization: Token YOUR_API_KEY'
-```
-
-`200 OK` with a `subscription_info` payload = key is alive. `401 Unauthorized` = key is invalid or revoked.
-
-## MCP server auth
-
-The MCP server at `https://api.seranking.com/mcp` is the recommended interface for any agentic workflow. It supports two auth modes, **pick one per client**:
-
-### Mode 1 — OAuth 2.1 (interactive, recommended for IDEs and desktop)
-
-Opens a browser on first connect, stores the token locally, reuses across sessions. Right for Claude Desktop, Claude Code on a workstation, Cursor, Codex IDE.
-
-```bash
-claude mcp add --transport http se-ranking https://api.seranking.com/mcp
-```
-
-First tool call triggers the browser sign-in. Subsequent calls reuse the refresh token (30-day sliding window, configurable via `MCP_REFRESH_TOKEN_TTL` server-side).
-
-### Mode 2 — API key header (non-interactive, recommended for CI / headless)
-
-Pass the key directly. Server skips OAuth entirely.
-
-```bash
-claude mcp add --transport http se-ranking https://api.seranking.com/mcp \
-  --header "X-Api-Key: $SERANKING_API_KEY"
-```
-
-The header `X-Data-Api-Key` is still accepted as an alias for `X-Api-Key` (backwards compat with older self-hosted installs).
-
-### Precedence when both are present
-
-If a request arrives with both header auth and an `Authorization: Bearer …` token from a previous OAuth session, **headers win**. This lets you override a stale Bearer token without reconfiguring the client.
-
-### Discovery endpoints (auto-resolved by spec-compliant clients)
-
-| Endpoint | Purpose |
+| Env var | Value |
 |---|---|
-| `/.well-known/oauth-authorization-server` | RFC 8414 authorization server metadata |
-| `/.well-known/oauth-protected-resource` | RFC 9728 protected-resource metadata |
-| `/.well-known/openid-configuration` | OIDC compatibility for clients that probe OIDC first |
-| `/register` | RFC 7591 dynamic client registration (no manual `client_id` provisioning) |
+| `DATAFORSEO_USERNAME` | Your DataForSEO account email |
+| `DATAFORSEO_PASSWORD` | Your DataForSEO API password (set separately from your login password) |
 
-## Per-client configuration cheat-sheet
+Get / set your API password at: <https://app.dataforseo.com/api-dashboard>
+
+## MCP server setup
+
+The DataForSEO MCP server is configured as a local stdio server (not a remote HTTP endpoint). Credentials are passed as env vars at launch — not as headers in each tool call.
 
 ### Claude Code
 
-```bash
-claude mcp add --transport http se-ranking https://api.seranking.com/mcp
-# Then /mcp to complete OAuth.
-```
-
-### Claude Desktop / claude.ai
-
-`Customize` → `Connectors` → `+` → `Add custom connector`. Name: `SE Ranking`. URL: `https://api.seranking.com/mcp`.
-
-### Codex (CLI + IDE)
-
-```bash
-codex mcp add se-ranking --url https://api.seranking.com/mcp
-```
-
-First-time Codex users: enable the rmcp feature in `~/.codex/config.toml`:
-
-```toml
-[features]
-experimental_use_rmcp_client = true
-```
-
-### Cursor
-
-`.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
+In `.claude/settings.json` (project) or `~/.claude/settings.json` (global):
 
 ```json
 {
   "mcpServers": {
-    "se-ranking": {
-      "url": "https://api.seranking.com/mcp"
+    "dataforseo": {
+      "command": "npx",
+      "args": ["-y", "@dataforseo/mcp-server"],
+      "env": {
+        "DATAFORSEO_USERNAME": "your@email.com",
+        "DATAFORSEO_PASSWORD": "your_api_password"
+      }
     }
   }
 }
 ```
 
-### VS Code
-
-`Cmd+P` → `MCP: Add Server` → `Command (stdio)`:
+Or using the CLI:
 
 ```bash
-npx -y mcp-remote https://api.seranking.com/mcp
+claude mcp add dataforseo \
+  --command "npx" \
+  --args "-y,@dataforseo/mcp-server" \
+  --env "DATAFORSEO_USERNAME=your@email.com" \
+  --env "DATAFORSEO_PASSWORD=your_api_password"
 ```
 
-### Windsurf / Zed / Gemini CLI / others
+### Claude Desktop
 
-All use the same `npx -y mcp-remote https://api.seranking.com/mcp` pattern via their respective MCP config files (`~/.codeium/windsurf/mcp_config.json`, `~/.config/zed/settings.json`, `~/.gemini/settings.json`).
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
-## Sub-accounts on a shared workspace
+```json
+{
+  "mcpServers": {
+    "dataforseo": {
+      "command": "npx",
+      "args": ["-y", "@dataforseo/mcp-server"],
+      "env": {
+        "DATAFORSEO_USERNAME": "your@email.com",
+        "DATAFORSEO_PASSWORD": "your_api_password"
+      }
+    }
+  }
+}
+```
 
-If the user is a sub-account on a master SE Ranking workspace, the "Sign in with SE Ranking" OAuth path won't enumerate any tools — **API access lives with the master account**. Workaround until sub-account API keys ship:
+### Cursor / Windsurf / VS Code
 
-1. Get the API key from the workspace administrator (from the API Dashboard on the master account).
-2. In the MCP connection dialog, choose **Enter API key manually** (or use Mode 2 via `X-Api-Key` header) instead of OAuth.
-3. Paste the master key.
+Same JSON structure — place in `.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, or VS Code's MCP settings respectively.
 
-## Key rotation
+## REST API auth (direct, without MCP)
 
-Rotate keys when:
+If calling the DataForSEO REST API directly (outside of MCP):
 
-- A key leaks (committed to git, posted in a Slack channel, ended up in a screenshot).
-- An employee with access leaves.
-- A workload moves between environments and you want clean rate-limit accounting.
+```bash
+curl -X POST 'https://api.dataforseo.com/v3/serp/google/organic/live/advanced' \
+  -u 'your@email.com:your_api_password' \
+  -H 'Content-Type: application/json' \
+  -d '[{"keyword": "seo tools", "location_code": 2840, "language_code": "en"}]'
+```
 
-Rotation:
+`-u` in curl sends Basic Auth. In code, set the `Authorization` header manually:
 
-1. Generate a new key at the API Dashboard.
-2. Roll the new key into production (env var, secret manager).
-3. Revoke the old key.
-4. **Note:** keys are validated and cached server-side. After revoking, allow up to 60 seconds for the cache to invalidate before assuming the old key is fully dead.
+```python
+import base64, requests
 
-## Common 401 / 403 patterns
+credentials = base64.b64encode(b"your@email.com:your_api_password").decode()
+headers = {
+    "Authorization": f"Basic {credentials}",
+    "Content-Type": "application/json",
+}
+```
 
-| HTTP | `error.message` | What it means | Fix |
-|---|---|---|---|
-| 401 | `Unauthorized` | Key missing, malformed, or revoked. | Re-check `Authorization` header format. Token scheme is `Token`, not `Bearer`. |
-| 401 | `API key provided via X-Api-Key failed validation.` | Format check passed (UUID-shaped) but liveness probe to `/v1/account/info` failed. | Key is revoked or typo'd. |
-| 403 | `Insufficient funds` | Data API balance too low for the requested cost. | Top up at the API Dashboard, or downsize the request. |
-| 403 | `Subscription required` | Project API call from a non-Business/Enterprise plan. | Upgrade plan, or stick to Data API only. |
-| 403 | `Limit reached` | Project API plan limit ("Sites", "Keywords", "Audit Pages", "AIRT Prompts") exceeded. | Upgrade plan, or release unused resources via the corresponding `PROJECT_delete*` tool. |
+```typescript
+const credentials = btoa("your@email.com:your_api_password");
+const headers = {
+  Authorization: `Basic ${credentials}`,
+  "Content-Type": "application/json",
+};
+```
 
-## Storing keys safely
+## Liveness check
 
-- **Never commit keys to git.** Even in private repos. Use `.env` (gitignored) + a secret manager (1Password, Doppler, AWS Secrets Manager, Vault).
-- **Don't pass keys in URL query parameters.** They leak into access logs.
-- **For client-side code:** API keys must never reach the browser. Proxy through your own backend.
-- **For CI:** use the platform's secret store (GitHub Actions secrets, GitLab CI variables, etc.).
-- **For Docker:** pass via `--env-file`, never bake into the image layer.
+Cheapest way to confirm credentials are valid (minimal credit cost):
+
+```bash
+curl -u 'your@email.com:your_api_password' \
+  'https://api.dataforseo.com/v3/appendix/user_data'
+```
+
+`200 OK` with account data = credentials are alive. `401 Unauthorized` = wrong username or password.
+
+## Storing credentials safely
+
+- **Never commit credentials to git.** Use `.env` files (gitignored) or a secret manager.
+- **For CI/CD:** use GitHub Actions secrets, GitLab CI variables, or your platform's secret store. Inject as env vars at runtime.
+- **For Docker:** pass via `--env-file .env`, never bake into the image layer.
+- **For local dev:** a `.env` file loaded by `dotenv` (Python) or `dotenv` (Node). Ensure `.env` is in `.gitignore`.
+
+```bash
+# .env (gitignored)
+DATAFORSEO_USERNAME=your@email.com
+DATAFORSEO_PASSWORD=your_api_password
+```
+
+## Common auth errors
+
+| HTTP | What it means | Fix |
+|---|---|---|
+| `401 Unauthorized` | Wrong username, wrong password, or no `Authorization` header. | Verify credentials at <https://app.dataforseo.com/api-dashboard>. Check that the API password is set (it defaults to empty on new accounts). |
+| `403 Forbidden` | Account suspended or insufficient plan for the endpoint. | Check account status at the DataForSEO dashboard. |
+| `402 Payment Required` | Insufficient API credit balance. | Top up at <https://app.dataforseo.com/billing>. |
+
+## API password vs. login password
+
+DataForSEO has **two separate passwords**:
+
+1. **Login password** — for signing into `app.dataforseo.com`. Not used for API access.
+2. **API password** — for all API and MCP calls. Set at: `app.dataforseo.com/api-dashboard` → "Change API password".
+
+New accounts often have no API password set. If you get `401` immediately, this is the most common cause — set the API password first.

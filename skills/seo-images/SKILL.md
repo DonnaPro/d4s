@@ -7,13 +7,13 @@ description: Image SEO audit for a URL or domain. Pulls raw image inventory via 
 
 A focused, page-level (or domain-sample) audit of every `<img>` and `<picture>` on the target. Surfaces alt-text issues, format gaps (WebP/AVIF coverage), responsive-image gaps (`srcset` / `sizes`), LCP and CLS risk, and missing `ImageObject` markup. Output is a prioritised remediation list plus paste-ready `<picture>` and JSON-LD snippets.
 
-> **Adapted from [`AgriciDaniel/claude-seo`](https://github.com/AgriciDaniel/claude-seo)'s `seo-images` skill** (MIT). Rubric, lazy-loader taxonomy, and severity ladder track the upstream implementation; data sources are wired to this catalogue's SE Ranking / Firecrawl / Google APIs stack.
+> **Adapted from [`AgriciDaniel/claude-seo`](https://github.com/AgriciDaniel/claude-seo)'s `seo-images` skill** (MIT). Rubric, lazy-loader taxonomy, and severity ladder track the upstream implementation; data sources are wired to this catalogue's DataForSEO / Firecrawl / Google APIs stack.
 
 ## Prerequisites
 
 - **Required for inventory:** `mcp__firecrawl-mcp__firecrawl_scrape` (raw HTML access). `WebFetch` returns markdown only — every `<img>` attribute (`srcset`, `sizes`, `loading`, `fetchpriority`, `width`, `height`, `data-src*` lazy variants) is stripped before the skill ever sees it. Without Firecrawl the audit cannot run. Install via `bash extensions/firecrawl/install.sh`.
 - **Optional (PSI byte-saving estimates):** `google-api.json` configured (Tier 0 — API key only). When present, step 9 runs and adds real Lighthouse `wastedBytes` per image to the remediation list.
-- **Optional (SE Ranking audit cross-reference):** SE Ranking MCP server connected and a recent audit for the domain. When present, step 10 elevates image-related audit issues onto the same remediation list.
+- **Optional (DataForSEO on-page cross-reference):** DataForSEO MCP server connected. When present, step 10 elevates image-related on-page issues onto the same remediation list.
 - User provides: a target URL (single-page audit) or a domain (sampled audit). For domains, the skill confirms how many pages to sample before spending Firecrawl credits.
 
 ## Process
@@ -24,7 +24,7 @@ A focused, page-level (or domain-sample) audit of every `<img>` and `<picture>` 
    - **Preflight checks** (mirror `skills/seo-firecrawl/references/preflight.md` where it applies):
      - Confirm Firecrawl is connected. If not, abort with the install command and stop.
      - If Google APIs are wired up (`~/.config/seo-skills/google-api.json` present), record the detected tier; step 9 will use it. If not, mark step 9 as skipped.
-     - If SE Ranking MCP is connected and a recent audit exists for the domain, record the audit ID; step 10 will use it. If not, mark step 10 as skipped.
+     - If DataForSEO MCP is connected, mark step 10 as available. If not, mark step 10 as skipped.
 
 2. **Gather image inventory** `mcp__firecrawl-mcp__firecrawl_scrape` (URL mode) or `firecrawl_map` + `firecrawl_scrape` (domain mode)
    - **URL mode:** scrape the target with `formats: ["html", "markdown"]` and `onlyMainContent: false` (we want nav/footer images too — hero logo, footer trust badges, decorative imagery all matter for the audit). For SPAs, pass `waitFor: 2000` so lazy-injected images appear in the rendered DOM. Parse every `<img>` and every `<picture>` from the returned `html`. Capture per image:
@@ -33,7 +33,7 @@ A focused, page-level (or domain-sample) audit of every `<img>` and `<picture>` 
      - Class signals: `lazyload`, `lazyloaded`, `lazy`, `perfmatters-lazy`, `lazyload-eio`
      - Parent `<picture>` `<source>` entries: `type`, `srcset`, `media`
      - Resolved absolute URL (for cross-origin / CDN detection)
-   - **Domain mode:** run `firecrawl_map` (default `limit: 500`, hard cap; cost: ~0.5 credit per discovered URL — surface the estimate before running). From the URL list, select a sample of up to 10 pages: homepage, plus the top traffic landing pages (from `DATA_getDomainKeywords`'s page aggregation if SE Ranking is connected, otherwise the deepest-nested URLs found in the sitemap — these are usually the content pages, not category indexes). Confirm the sample list and credit cost before scraping. Then scrape each (1 credit per page). Inventory is the union of every image on the sampled pages.
+   - **Domain mode:** run `firecrawl_map` (default `limit: 500`, hard cap; cost: ~0.5 credit per discovered URL — surface the estimate before running). From the URL list, select a sample of up to 10 pages: homepage, plus the top traffic landing pages (from `dataforseo_labs_google_ranked_keywords`'s page aggregation if DataForSEO is connected, otherwise the deepest-nested URLs found in the sitemap — these are usually the content pages, not category indexes). Confirm the sample list and credit cost before scraping. Then scrape each (1 credit per page). Inventory is the union of every image on the sampled pages.
    - **CSS background-images:** flag as a known blind spot. We don't audit `background-image: url(...)` in stylesheets — those are not crawlable as content images by Google and don't get image-search visibility. Surface "{n} likely background-images detected (computed style references) — out of scope for this audit; review separately if hero/feature images are CSS-based" in the synthesis.
 
 3. **Alt-text audit**
@@ -110,14 +110,14 @@ A focused, page-level (or domain-sample) audit of every `<img>` and `<picture>` 
     - Each PSI audit returns `details.items[]` with `url` and `wastedBytes`. Join on image URL (resolved absolute) and tag each remediation row with `psi_wasted_bytes` so the prioritised list orders by real savings, not heuristic severity alone.
     - **If PSI is configured but returns no audits** (likely a 4xx — usually a private/protected URL Lighthouse can't load): note "PSI: could not analyse {url} ({reason})" and continue with non-PSI signals.
 
-11. **Optional: SE Ranking audit cross-reference** *(only if SE Ranking MCP is connected and a recent audit exists)*
-    - `DATA_listAudits` → find the most recent audit for the domain. If none exists or it's >30 days old, skip this step (don't trigger a new audit from the image skill — that's `seo-technical-audit`'s call to make).
-    - For each image-related audit code, `DATA_getAuditPagesByIssue`:
-      - `images_oversized` (or whatever SE Ranking's current code is for "uncompressed images")
-      - `images_no_alt`
-      - `images_broken` (404 / 5xx image URLs)
-      - `images_no_dimensions` (CLS)
-    - Merge findings: for any image flagged by both the audit and this skill, elevate severity by one step. For any audit-flagged URL that the Firecrawl sample didn't include, list it under "Audit-flagged pages not in this sample" with a recommendation to re-run on those URLs specifically.
+11. **Optional: DataForSEO on-page cross-reference** *(only if DataForSEO MCP is connected)*
+    - Use `on_page_instant_pages` on the target URL to retrieve on-page analysis results. If the URL hasn't been analysed recently (>30 days), skip this step rather than triggering a full crawl — that's `seo-technical-audit`'s call to make.
+    - For each image-related issue in the on-page results:
+      - Oversized / uncompressed images
+      - Missing alt text on images
+      - Broken image URLs (404 / 5xx)
+      - Images missing dimensions (CLS)
+    - Merge findings: for any image flagged by both the on-page analysis and this skill, elevate severity by one step. For any analysis-flagged URL that the Firecrawl sample didn't include, list it under "Analysis-flagged pages not in this sample" with a recommendation to re-run on those URLs specifically.
 
 12. **Synthesise** `IMAGES.md`. Build the remediation table sorted by:
     1. Severity (Critical → High → Medium → Low),
@@ -138,7 +138,7 @@ seo-images-{target-slug}-{YYYYMMDD}/
 │   ├── alt-text-rewrites.md        (suggested alts for missing / generic-text cases)
 │   └── image-object.jsonld         (generated ImageObject for the hero image, if applicable)
 ├── 03-psi-report.md                (PSI image-audit breakdown — only if Google APIs configured)
-└── 04-audit-cross-ref.md           (image-related SE Ranking audit issues — only if step 11 ran)
+└── 04-audit-cross-ref.md           (image-related on-page analysis issues — only if step 11 ran)
 ```
 
 `IMAGES.md` follows this shape:

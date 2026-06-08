@@ -1,6 +1,6 @@
 ---
 name: seo-ads
-description: Paid-search competitive landscape for a domain or keyword. Pulls SE Ranking's PPC data — domain ad keyword footprint, ad copy patterns, who else bids on the same keywords, SERP shopping/ad-pack visibility — and produces a competitive ads brief plus a recommended bid-keyword shortlist. Use when the user asks "paid search analysis", "competitor ads", "PPC competitive", "ad copy intelligence", "shopping pack", "who bids on this keyword", or "paid keyword footprint".
+description: Paid-search competitive landscape for a domain or keyword. Pulls DataForSEO's PPC data — domain ad keyword footprint, ad copy patterns, who else bids on the same keywords, SERP shopping/ad-pack visibility — and produces a competitive ads brief plus a recommended bid-keyword shortlist. Use when the user asks "paid search analysis", "competitor ads", "PPC competitive", "ad copy intelligence", "shopping pack", "who bids on this keyword", or "paid keyword footprint".
 ---
 > Example output: [examples/seo-ads-hostinger-com-20260514/ADS.md](../../examples/seo-ads-hostinger-com-20260514/ADS.md)
 
@@ -10,30 +10,29 @@ Map a domain's paid-search footprint and the competitive landscape around its ta
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - User provides: (a) a target domain OR a target keyword (skill detects which), (b) target country (default `us`).
 
 ## Process
 
 1. **Validate input & preflight**
    - Determine: domain mode (analyse a brand's paid footprint) or keyword mode (analyse the bidding landscape for one keyword).
-   - `DATA_getCreditBalance` — surface remaining credits.
 
-2. **Domain mode** `DATA_getDomainAdsByDomain`
+2. **Domain mode** `dataforseo_labs_google_ranked_keywords` (with paid traffic filter)
    - Pull paid keywords the target domain bids on.
    - For each: keyword, search volume, CPC, position, ad copy (title + description), URL.
    - Sort by traffic-weighted score (`volume × CTR-by-paid-position × bid-share`).
 
-3. **Keyword mode** `DATA_getDomainAdsByKeyword`
+3. **Keyword mode** `serp_organic_live_advanced` (paid results in response)
    - Pull all domains bidding on the target keyword.
    - For each: domain, ad position, ad copy, URL.
    - Surface the top 10 advertisers + their copy patterns.
 
-4. **Intent enrichment** `DATA_getKeywordQuestions`
+4. **Intent enrichment** `dataforseo_labs_google_related_keywords`
    - For the keyword(s) in scope, pull related questions.
    - Identifies question-phrased intent variants worth bidding on (often cheaper, higher conversion).
 
-5. **SERP ad/shopping presence** `DATA_getSerpResults`
+5. **SERP ad/shopping presence** `serp_organic_live_advanced`
    - For top 5 keywords (domain mode) or the target keyword (keyword mode):
      - Use SERP-feature filters to detect ad-pack composition: `tads` (top ads above organic), `bads` (bottom ads below organic), `sads` (shopping ads / Google Shopping pack), `mads` (mobile/map-pack ads).
      - Top SERP ad slots (positions 1-4 above organic, 1-3 below).
@@ -46,9 +45,9 @@ Map a domain's paid-search footprint and the competitive landscape around its ta
    - Identify: USP language used by leaders, pricing/discount mentions, audience segmentation, CTA verbs.
    - Highlight outliers (advertisers doing something different).
 
-7. **Paid-keyword gap (domain mode)** `DATA_getDomainKeywords` with `type: 'adv'`
-   - Pull the user's domain's paid keywords using the `type: 'adv'` switch.
-   - For each top competitor (from step 2 or `DATA_getDomainCompetitors` with `type: 'adv'`): pull their paid keywords with `type: 'adv'`.
+7. **Paid-keyword gap (domain mode)** `dataforseo_labs_google_ranked_keywords` with paid traffic filter
+   - Pull the user's domain's paid keywords.
+   - For each top competitor (from step 2 or `dataforseo_labs_google_competitors_domain`): pull their paid keywords.
    - Diff: paid keywords competitors bid on that the user's domain doesn't.
    - This becomes the highest-leverage portion of the bid-keyword shortlist (step 8).
    - Skip in keyword mode (no domain to gap against).
@@ -71,10 +70,10 @@ seo-ads-{target-slug}-{YYYYMMDD}/
 └── evidence/
     ├── 01-paid-footprint.md           (domain mode: brand's paid keywords — raw step output)
     ├── 02-bidding-landscape.md        (keyword mode: advertisers on the keyword — raw step output)
-    ├── 03-question-variants.md        (DATA_getKeywordQuestions enrichment)
+    ├── 03-question-variants.md        (dataforseo_labs_google_related_keywords enrichment)
     ├── 04-serp-ad-shopping-pack.md    (SERP feature inventory per keyword)
     ├── 05-ad-copy-patterns.md         (clustered headline/description patterns)
-    └── 06-paid-keyword-gap.md         (domain mode: type='adv' diff vs competitors)
+    └── 06-paid-keyword-gap.md         (domain mode: paid traffic diff vs competitors)
 ```
 
 Step files 01, 02, 04, 05, 06 are inlined as sections in `ADS.md`; the copies in `evidence/` preserve the raw step outputs for reproducibility.
@@ -141,12 +140,11 @@ Cross-reference these paid keywords with `seo-keyword-cluster` output to find un
 
 ## Tips
 
-- Respect rate limit. Domain mode: ~3–5 calls. Keyword mode: ~3 calls. Plus a few SERP queries.
-- Cost: ~10–20 credits typical for domain mode; ~5–10 for keyword mode.
-- **CPC estimates lag.** SE Ranking's CPC data is not real-time auction data; treat as ±30% directional.
+- Respect rate limit. Domain mode: ~3–5 DataForSEO API calls. Keyword mode: ~3 calls. Plus a few SERP queries.
+- **CPC estimates lag.** DataForSEO's CPC data is not real-time auction data; treat as ±30% directional.
 - Ad copy often reveals competitor positioning before product launches do — periodic review (quarterly) catches strategic shifts.
 - Question-intent variants often have lower CPC and higher conversion than head terms. The shortlist in step 8 prioritises these.
 - Pair with `seo-keyword-niche` for organic content opportunities derived from paid keyword research.
 - Pair with `seo-competitor-pages` if the bidding landscape reveals "X vs Y" / "alternatives" intent — those keywords convert best as comparison pages, not paid ads.
-- **Ads data via shared DATA_* tools** — beyond the dedicated `DATA_getDomainAdsByDomain` / `DATA_getDomainAdsByKeyword`, the `type: 'adv'` enum switch on `DATA_getDomainKeywords`, `DATA_getDomainKeywordsComparison`, `DATA_getDomainCompetitors`, `DATA_getDomainPages`, and similar tools surfaces the paid view of the same data structures. Combine with the `tads/bads/sads/mads` SERP-feature filters and the CPC filter on SERP queries to map paid landscape comprehensively.
+- **Ads data via shared DataForSEO tools** — beyond the dedicated paid-filter calls on `dataforseo_labs_google_ranked_keywords` / `serp_organic_live_advanced`, the `dataforseo_labs_google_domain_intersection`, `dataforseo_labs_google_competitors_domain`, `dataforseo_labs_google_relevant_pages`, and similar tools can surface the paid view of the same data structures. Combine with the `tads/bads/sads/mads` SERP-feature filters and the CPC filter on SERP queries to map paid landscape comprehensively.
 - Don't recommend paid keywords without context. The shortlist is a starting point for the PPC team, not an autopilot.

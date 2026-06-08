@@ -10,29 +10,28 @@ For one URL, surface its AI-search citation footprint and recommend the page-lev
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available.
-- User provides: a target URL. Optional: target country (default `us`), specific keywords to focus on (defaults: the URL's top-5 traffic-weighted keywords from SE Ranking).
+- User provides: a target URL. Optional: target country (default `us`), specific keywords to focus on (defaults: the URL's top-5 traffic-weighted keywords from DataForSEO).
 
 ## Process
 
-1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (credit balance, Firecrawl availability, Google APIs). Skill-specific notes:
+1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (Firecrawl availability, Google APIs). Skill-specific notes:
    - Confirm URL is fetchable before continuing.
-   - Estimated SE Ranking cost for this skill: ~10–20 credits typical (URL keyword footprint, AIO presence + leaderboard for top 5 keywords).
    - Firecrawl: optional, ~3 Firecrawl credits if available. When available, the JSON-LD parse in step 7 and the AI-protocol-files step 8 use it. Without it, those steps emit `(skipped — Firecrawl not installed; install via extensions/firecrawl/install.sh)` notes in `GEO.md` rather than failing the run. Pass `--no-firecrawl` to skip Firecrawl even when available (saves credits).
    - Google APIs: not used.
 
-2. **URL keyword footprint** `DATA_getUrlOverviewWorldwide` and `DATA_getDomainKeywords` (URL-filtered)
+2. **URL keyword footprint** `dataforseo_labs_google_domain_rank_overview` and `dataforseo_labs_google_ranked_keywords` (URL-filtered)
    - Pull URL's overview (keywords, traffic).
    - Pull all keywords the URL ranks for. Sort by traffic-weighted score.
    - Take the top 5 as the GEO investigation set (or use user-supplied keywords).
 
-3. **AIO presence per keyword** `DATA_getAiOverview`
-   - For each keyword, query AIO presence + citation list.
+3. **AIO presence per keyword** `serp_organic_live_advanced`
+   - For each keyword, query SERP results including AI Overview items in the response.
    - Flag: AIO present? Is the candidate URL cited?
    - Capture the AIO answer text — it tells you what passage shape Google's models prefer.
 
-4. **AIO leaderboard per keyword** `DATA_getAiOverviewLeaderboard`
+4. **AIO leaderboard per keyword** `ai_opt_llm_ment_top_domains`
    - Full ranked list of cited sources per AIO query.
    - Identify patterns: domain-level (which sites consistently cited?), passage-level (what structure?).
 
@@ -150,7 +149,7 @@ Re-run `seo-geo` on this URL in 30 days after applying the recommendations. AIO 
 ## Tips
 
 - Respect rate limit. ~5 keywords × 2 AIO calls = ~10 calls; plus 2–3 WebFetch on cited sources. Easy.
-- Cost: ~10–20 SE Ranking credits typical, plus ~3 Firecrawl credits when the extension is installed (1 for target-URL JSON-LD, 2 for AI-protocol files). The skill degrades gracefully without Firecrawl — the schema and AI-protocol sections emit explicit "skipped" notes rather than silently dropping.
+- Cost: ~3 Firecrawl credits when the extension is installed (1 for target-URL JSON-LD, 2 for AI-protocol files). The skill degrades gracefully without Firecrawl — the schema and AI-protocol sections emit explicit "skipped" notes rather than silently dropping.
 - **Citation isn't ranking.** A page can rank well organically and still not be cited in AIO. The opposite happens too — cited pages often rank below their citation rate.
 - The biggest GEO levers are usually:
   1. Definitive answer in the first 200 words.

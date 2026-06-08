@@ -6,7 +6,7 @@ description: Ad-hoc web scraping, site mapping, and full-site crawling via Firec
 
 # Firecrawl Orchestrator
 
-A direct interface to Firecrawl MCP for tasks that fall outside the data-driven SE Ranking skills. Use when:
+A direct interface to Firecrawl MCP for tasks that fall outside the data-driven DataForSEO skills. Use when:
 
 - You need raw HTML, `<head>` metadata, JSON-LD, or post-JS DOM that WebFetch's markdown conversion strips.
 - You need a list of all URLs on a domain without pulling each one.
@@ -132,7 +132,7 @@ seo-firecrawl-{slug}-{YYYYMMDD}/
 - **Don't use `firecrawl_extract` or `firecrawl_deep_research`.** Both overlap with our own LLM analysis; `firecrawl_extract` has opaque pricing on the free tier; both are explicitly out of scope for `seo-skills`.
 - **Cloudflare / anti-bot:** some sites (especially e-commerce, banking) block Firecrawl's scraper. Surface the error cleanly; defeating WAFs is not a goal of this skill.
 - **Sub-step usage.** When invoked from another skill (`seo-page`, `seo-schema`, etc.), drop the `FIRECRAWL.md` synthesis — the caller wants the raw `META.md` / `RAW.md`. Skip mode-2's `URLS.md` summary too if the caller wants the raw `urls.csv`.
-- **This is the entry point** when you need raw HTML and don't have a more specific skill in mind. If you do — `seo-page` for keyword/traffic verdicts on one URL, `seo-schema` for JSON-LD work, `seo-technical-audit` for crawl-wide issues — use those instead. They orchestrate Firecrawl plus SE Ranking data automatically.
+- **This is the entry point** when you need raw HTML and don't have a more specific skill in mind. If you do — `seo-page` for keyword/traffic verdicts on one URL, `seo-schema` for JSON-LD work, `seo-technical-audit` for crawl-wide issues — use those instead. They orchestrate Firecrawl plus DataForSEO data automatically.
 
 ## Works well with
 

@@ -10,24 +10,23 @@ Mine the long tail for content opportunities. Pulls longtail variants, question-
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - User provides: a seed topic (e.g. "running shoes", "tax preparation"), or 2–5 seed keywords. Target country (default `us`). Optional: minimum volume threshold (default: 50/mo for niche skill — lower than `seo-keyword-cluster`'s 100), maximum KD (default: 40 for accessibility).
 
 ## Process
 
 1. **Validate & preflight**
    - Confirm seeds make sense (not too broad, not branded, not single-letter).
-   - `DATA_getCreditBalance` — surface remaining credits. This skill is heavier than most: pulling longtail at depth costs more than pulling head terms.
 
-2. **Longtail expansion** `DATA_getLongTailKeywords`
+2. **Longtail expansion** `dataforseo_labs_google_keyword_suggestions`
    - For each seed: pull longtail variants (typically 3+ words, lower individual volume, lower KD).
    - Target: 200–500 longtail candidates per seed.
 
-3. **Question expansion** `DATA_getKeywordQuestions`
+3. **Question expansion** `dataforseo_labs_google_keyword_ideas`
    - For each seed: pull question-phrased keywords.
    - These are gold for content mining — explicit user intent in the keyword.
 
-4. **Related expansion** `DATA_getRelatedKeywords` and `DATA_getSimilarKeywords`
+4. **Related expansion** `dataforseo_labs_google_related_keywords` and `dataforseo_labs_google_keyword_suggestions`
    - For each seed: pull related + similar keywords.
    - Catches semantic neighbours that longtail expansion missed.
 
@@ -37,7 +36,7 @@ Mine the long tail for content opportunities. Pulls longtail variants, question-
    - Tag each keyword with detected intent: informational, commercial, transactional, navigational.
    - De-duplicate across seeds.
 
-6. **SERP sample for representative keywords** `DATA_getSerpResults`
+6. **SERP sample for representative keywords** `serp_organic_live_advanced`
    - For 5–10 representative keywords (one per emerging cluster), pull top 10.
    - Identify the dominant page type for each cluster (informs the template proposal in step 8).
 
@@ -84,7 +83,7 @@ seo-keyword-niche-{target-slug}-{YYYYMMDD}/
 ├── 07-quality-gates.md             (thin-content guardrails — load-bearing reference release-gate readers consult directly)
 └── evidence/
     ├── 01-seed-expansion.md        (raw expansion per seed — raw step output)
-    ├── 02-question-keywords.md     (DATA_getKeywordQuestions)
+    ├── 02-question-keywords.md     (dataforseo_labs_google_keyword_ideas)
     ├── 03-filtered-keywords.md     (post min-vol / max-kd filter)
     ├── 04-cluster-assignment.md    (every keyword and its cluster)
     └── 05-serp-samples.md          (top 10 for representative cluster keywords)
@@ -166,8 +165,7 @@ Build a small pilot — 10 pages from the top cluster — before committing to t
 
 ## Tips
 
-- Respect rate limit: 10 req/sec. Steps 2–4 fan out across all seeds; pace sequentially.
-- Cost: ~30–80 credits for 5 seeds, ~150+ for 10–20 seeds. Call `DATA_getCreditBalance` before running and surface the estimate.
+- Respect DataForSEO API rate limit. Steps 2–4 fan out across all seeds; pace sequentially.
 - **Programmatic SEO is risky.** Pages that don't pass the unique-data threshold are dead weight at best, penalty bait at worst. The quality gates in step 9 are not optional.
 - The pilot recommendation is critical. 10 pages with thoughtful templates outperform 1000 pages of templated mush.
 - For e-commerce / inventory-driven content (city pages, product variations), the unique-data threshold is usually easy to hit.

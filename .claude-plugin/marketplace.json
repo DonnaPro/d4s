@@ -1,31 +1,31 @@
 {
-  "name": "seranking",
+  "name": "donnapro",
   "owner": {
-    "name": "SE Ranking",
-    "email": "api@seranking.com"
+    "name": "DonnaPro",
+    "email": "zoran@donnapro.com"
   },
   "metadata": {
-    "description": "Official Claude Code plugin marketplace from SE Ranking. Plugins built on top of the SE Ranking SEO Data API MCP server.",
-    "version": "2.10.3"
+    "description": "SEO Skills for the DataForSEO MCP server, configured for donnapro.com. Keyword research, content briefing, page intelligence, technical audits, backlink analysis, competitive analysis, AI-search optimization, local SEO, structured data, sitemap analysis, subdomain mapping, and more.",
+    "version": "3.0.0"
   },
   "plugins": [
     {
       "name": "seo-skills",
       "source": "./",
-      "description": "Claude SEO Skills for the SE Ranking MCP server. Keyword research, content briefing, page intelligence, technical and content audits, structured data, drift monitoring, SXO diagnostics, competitive analysis, paid search, AI-search optimization, sitemap analysis, subdomain mapping, content opportunity mining, strategic roadmap planning, local SEO (GBP / NAP / local pack), international SEO (hreflang validation), Google APIs (GSC, PSI, CrUX, Indexing, GA4, YouTube, NLP), and SE Ranking API integration recipes (Data API + Project API).",
-      "version": "2.10.3",
+      "description": "Claude SEO Skills for the DataForSEO MCP server. Keyword research, content briefing, page intelligence, technical and content audits, structured data, drift monitoring, SXO diagnostics, competitive analysis, paid search, AI-search optimization, sitemap analysis, subdomain mapping, content opportunity mining, strategic roadmap planning, local SEO, international SEO (hreflang), Google APIs (GSC, PSI, CrUX, Indexing, GA4, YouTube, NLP), and DataForSEO API integration recipes.",
+      "version": "3.0.0",
       "author": {
-        "name": "SE Ranking",
-        "email": "api@seranking.com"
+        "name": "DonnaPro",
+        "email": "zoran@donnapro.com"
       },
-      "homepage": "https://github.com/seranking/seo-skills",
-      "repository": "https://github.com/seranking/seo-skills",
+      "homepage": "https://github.com/DonnaPro/d4s",
+      "repository": "https://github.com/DonnaPro/d4s",
       "license": "MIT",
       "category": "seo",
       "tags": [
         "seo",
         "mcp",
-        "se-ranking",
+        "dataforseo",
         "claude",
         "claude-code",
         "claude-skills",
@@ -36,16 +36,14 @@
         "keyword-research",
         "backlinks",
         "site-audit",
-        "share-of-voice",
-        "aeo",
-        "geo",
         "local-seo",
-        "hreflang"
+        "hreflang",
+        "donnapro"
       ],
       "keywords": [
         "seo",
         "mcp",
-        "se-ranking",
+        "dataforseo",
         "claude-skills",
         "content-brief",
         "ai-search",

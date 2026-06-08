@@ -1,8 +1,8 @@
 # Claude SEO Skills
 
-Production-ready [Claude Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) for SEO, powered by the [SE Ranking remote MCP](https://seranking.com/api/integrations/mcp). Each skill turns raw API data into a finished SEO deliverable — content briefs, AI Search share of voice, page intelligence, structured data, drift monitoring, SXO diagnostics, competitive analysis, and more.
+Production-ready [Claude Agent Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview) for SEO, powered by the [DataForSEO MCP server](https://dataforseo.com). Each skill turns raw API data into a finished SEO deliverable — content briefs, AI Search share of voice, page intelligence, structured data, drift monitoring, SXO diagnostics, competitive analysis, and more.
 
-These Claude Skills are designed to work with the SE Ranking MCP server, but they document every API call explicitly so they can also be adapted to other SEO data providers.
+These Claude Skills are designed to work with the DataForSEO MCP server, but they document every API call explicitly so they can also be adapted to other SEO data providers.
 
 ## Install
 
@@ -14,7 +14,7 @@ The easiest setup — no terminal needed. Cowork in Claude Desktop installs the 
 
 1. Open **Customize** in the sidebar.
 2. Click **Personal plugin** → **+ Create plugin**.
-3. Click **Add marketplace** and enter `seranking/seo-skills`.
+3. Click **Add marketplace** and enter `DonnaPro/d4s`.
 4. Install the plugin once the marketplace loads.
 
 Skills are available in your next Cowork session. Trigger them by name — `seo-content-brief`, `seo-page`, etc. — or just describe what you want and Claude picks the right one.
@@ -24,19 +24,19 @@ Skills are available in your next Cowork session. Trigger them by name — `seo-
 If you use Claude Code in the terminal:
 
 ```bash
-/plugin marketplace add seranking/seo-skills
-/plugin install seo-skills@seranking
+/plugin marketplace add DonnaPro/d4s
+/plugin install d4s@DonnaPro
 ```
 
-Trigger skills with `/seo-content-brief`, `/seo-page`, etc. — no `seo-skills:` prefix needed. Or just describe what you want and Claude picks the right skill. Update the marketplace later with `/plugin marketplace update seranking`.
+Trigger skills with `/seo-content-brief`, `/seo-page`, etc. — no prefix needed. Or just describe what you want and Claude picks the right skill. Update the marketplace later with `/plugin marketplace update DonnaPro`.
 
 ### 3. Manual install (only if you want `seo-google` or the optional extensions)
 
 Options 1 and 2 cover **25 of 26 skills**. The 26th — `seo-google` — ships Python scripts that need a local clone. The optional Firecrawl + Google extensions also need this. **If neither matters to you, skip this option.**
 
 ```bash
-git clone --depth 1 https://github.com/seranking/seo-skills.git
-bash seo-skills/install.sh
+git clone --depth 1 https://github.com/DonnaPro/d4s.git
+bash d4s/install.sh
 ```
 
 The installer is interactive — it asks which extensions to install. Accept the defaults and you're done. Re-running pulls the latest version and re-runs the chosen extensions. Requires `git`, `python3` 3.10+, and (for Firecrawl) `node` 20+.
@@ -45,29 +45,29 @@ The installer is interactive — it asks which extensions to install. Accept the
 <summary>One-liner (curl)</summary>
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/seranking/seo-skills/main/install.sh | bash -s -- --all
+curl -fsSL https://raw.githubusercontent.com/DonnaPro/d4s/main/install.sh | bash -s -- --all
 ```
 
-`--all` enables both extensions. Use `--firecrawl` / `--google` individually, or `--no-extensions` to clone only. Default clone target is `~/.local/share/seo-skills`; override with `--target /path/to/dir`.
+`--all` enables both extensions. Use `--firecrawl` / `--google` individually, or `--no-extensions` to clone only. Default clone target is `~/.local/share/d4s`; override with `--target /path/to/dir`.
 
 </details>
 
 The manual install only wires your *environment* (extensions, Python deps, `~/.config/seo-skills/`). You still need Option 1 or 2 above so Claude can find the skill files.
 
-### Connect SE Ranking (any install path)
+### Connect DataForSEO (any install path)
 
-The SE Ranking remote MCP auto-registers when you install the plugin — there's no separate `claude mcp add` step. On your first session, run `/mcp` and sign in via OAuth. No API token to manage. If you don't have an SE Ranking account yet, [sign up](https://seranking.com/api.html) — API access is required.
-
-<details>
-<summary>Manual fallback (older Claude Code, or troubleshooting)</summary>
-
-If `/mcp` doesn't list `se-ranking` after install — typically because you're on a Claude Code build that pre-dates plugin-bundled MCP servers — register it directly:
+Register the DataForSEO MCP server with your API credentials:
 
 ```bash
-claude mcp add --transport http se-ranking https://api.seranking.com/mcp
+claude mcp add --transport stdio --env DATAFORSEO_USERNAME=your@email.com --env DATAFORSEO_PASSWORD=your_password dataforseo -- npx -y dataforseo-mcp-server
 ```
 
-Then run `/mcp` and complete OAuth. (User-scope registrations [outrank plugin-bundled ones](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence), so this safely overrides whatever the plugin shipped with.)
+Then run `/mcp` to confirm the server is connected. If you don't have a DataForSEO account yet, [sign up](https://dataforseo.com) — API access is required.
+
+<details>
+<summary>Already have credentials configured?</summary>
+
+If `dataforseo` already appears in `/mcp`, no further setup is needed. The plugin will use your existing registration.
 
 </details>
 
@@ -110,22 +110,22 @@ The rest of the catalogue — every other skill the plugin ships.
 | [`seo-images`](skills/seo-images/SKILL.md) | Image SEO audit for a URL or sampled domain: alt-text quality, WebP/AVIF coverage, `srcset`/`sizes`, lazy-loading + LCP signals (`loading` / `fetchpriority` / `decoding`), CLS dimensions, file naming, and `ImageObject` JSON-LD. Optional PSI byte-saving cross-reference. Paste-ready `<picture>` + JSON-LD snippets | "image SEO", "image audit", "alt-text audit", "WebP coverage", "AVIF", "responsive images", "lazy loading", "CLS images", "image schema", "ImageObject" |
 | [`seo-drift`](skills/seo-drift/SKILL.md) | Git for SEO — baseline, compare, history. Severity-coded regression report across authority, traffic, keywords, backlinks, page fingerprint | "SEO drift", "did anything break", "deployment check", "baseline this site", "SEO regression" |
 | [`seo-technical-audit`](skills/seo-technical-audit/SKILL.md) | One-shot technical audit: crawlability, indexability, security, mobile, structured data, JS rendering. Top-10 fix list ranked by impact × effort | "technical audit", "site audit", "audit my site", "crawl issues", "indexation issues" |
-| [`seo-sitemap`](skills/seo-sitemap/SKILL.md) | Compare a domain's XML sitemap to the most recent SE Ranking audit. Surfaces missing-from-sitemap, orphans, broken entries, lastmod issues | "sitemap analysis", "check my sitemap", "missing pages", "orphan pages", "sitemap health" |
+| [`seo-sitemap`](skills/seo-sitemap/SKILL.md) | Compare a domain's XML sitemap to the most recent audit. Surfaces missing-from-sitemap, orphans, broken entries, lastmod issues | "sitemap analysis", "check my sitemap", "missing pages", "orphan pages", "sitemap health" |
 | [`seo-competitor-pages`](skills/seo-competitor-pages/SKILL.md) | Generate "X vs Y" / "alternatives to X" / "best X for Y" landing pages with feature matrix, schema, balanced verdict, and CTA flow | "comparison page", "vs page", "alternatives page", "X vs Y", "alternative to X" |
 | [`seo-backlinks-profile`](skills/seo-backlinks-profile/SKILL.md) | Full backlink profile audit (vs gap-only `seo-backlink-gap`): authority distribution, anchor diversity, IP/subnet concentration, growth/decay, toxic-candidate flagging | "backlink profile", "link profile audit", "anchor distribution", "toxic links", "disavow candidates" |
 | [`seo-subdomain`](skills/seo-subdomain/SKILL.md) | Subdomain ownership map. Lists subdomains, topic ownership, fragmentation/cannibalization flags, consolidate / split recommendations | "subdomain analysis", "subdomain ownership", "blog vs main domain", "should I consolidate subdomains" |
 | [`seo-geo`](skills/seo-geo/SKILL.md) | URL-level Generative Engine Optimization analysis. AIO citation footprint per primary keyword + page passage-level audit + recommendations to improve LLM citability | "GEO for this page", "AIO citation analysis", "AI search readiness for URL", "why isn't this page cited" |
 | [`seo-keyword-niche`](skills/seo-keyword-niche/SKILL.md) | Mine longtail + question keywords for niche content opportunities. Outputs a content-tier plan with template spec, URL pattern, sample pages, and thin-content quality gates | "longtail keywords", "question keywords", "niche content", "content opportunities at scale", "programmatic SEO" |
-| [`seo-hreflang`](skills/seo-hreflang/SKILL.md) | Hreflang and international SEO audit for multi-language / multi-region sites. Validates language-region codes, return tags, `x-default`, and canonical alignment across per-URL HTML, the SE Ranking audit, and the XML sitemap. PASS / NEEDS-FIX / BROKEN verdict with a top-fixes table | "hreflang", "international SEO", "i18n", "language targeting", "x-default", "regional sites", "multi-language SEO" |
+| [`seo-hreflang`](skills/seo-hreflang/SKILL.md) | Hreflang and international SEO audit for multi-language / multi-region sites. Validates language-region codes, return tags, `x-default`, and canonical alignment across per-URL HTML, the audit, and the XML sitemap. PASS / NEEDS-FIX / BROKEN verdict with a top-fixes table | "hreflang", "international SEO", "i18n", "language targeting", "x-default", "regional sites", "multi-language SEO" |
 | [`seo-local`](skills/seo-local/SKILL.md) | Local SEO audit for brick-and-mortar, service-area, and multi-location businesses. Scores Google Business Profile signals on the page, NAP consistency across page and schema, on-page local intent, Tier-1 citation footprint, review-platform presence, and local-pack rank. Prioritised fix list | "local SEO", "GBP", "Google Business Profile", "NAP", "local pack", "citations", "near me", "service area", "multi-location SEO" |
 | [`seo-firecrawl`](skills/seo-firecrawl/SKILL.md) | Ad-hoc web scraping, site mapping, full-site crawling, and within-domain search via Firecrawl. Returns raw HTML, JSON-LD, og:* / twitter:* metadata, JS-rendered DOM, and screenshots that WebFetch can't *(requires the [Firecrawl extension](#firecrawl-raw-html-json-ld-js-rendering-site-crawl))* | "scrape this page", "crawl this site", "map this site", "get the OG tags", "render this JS-heavy page" |
 | [`seo-plan`](skills/seo-plan/SKILL.md) | Phased SEO roadmap for a domain — quarter-by-quarter, tied to competitive position, content gaps, technical debt, and AI Search readiness. Sequences specialist-skill outputs into one site-level plan with owners, metrics, and a critical path | "SEO plan", "SEO strategy", "SEO roadmap", "90-day plan", "where do we focus next" |
 | [`seo-google`](skills/seo-google/SKILL.md) | Google's own SEO data: GSC Search Analytics + URL Inspection + Sitemaps, PageSpeed Insights, CrUX field data + 25-week history, Indexing API, GA4 organic, YouTube, NLP, Knowledge Graph, Web Risk, Keyword Planner. 4 credential tiers; lower tiers are useful on their own *(requires the [Google APIs extension](#google-apis-real-cwv-gsc-ga4-youtube-keyword-planner))* | "search console", "GSC", "PageSpeed", "CrUX", "URL inspection", "real CWV data", "GA4 organic", "google api setup" |
-| [`seo-api`](skills/seo-api/SKILL.md) | SE Ranking API integration architect — covers the entire 195-tool surface (Data API + Project API), forecasts credit and plan-limit cost, emits ready-to-paste cURL / Python / TypeScript / MCP-tool-call recipes, and (with explicit confirmation) wires up Project API state (projects, keywords, search engines, audits, AIRT prompts, backlink groups) | "how do I use SE Ranking API to do X", "what endpoint gives me Y", "credit cost of workflow Z", "build a rank tracker", "set up an audit", "Postman / cURL / Python / TypeScript for SE Ranking", "rate limit for X", "integrate SE Ranking with Looker / n8n / Make" |
+| [`seo-api`](skills/seo-api/SKILL.md) | DataForSEO API integration architect — covers the full API surface, forecasts cost, emits ready-to-paste cURL / Python / TypeScript / MCP-tool-call recipes, and wires up integrations | "how do I use DataForSEO API to do X", "what endpoint gives me Y", "build a rank tracker", "set up an audit", "cURL / Python / TypeScript for DataForSEO", "rate limit for X", "integrate DataForSEO with Looker / n8n / Make" |
 
 ## Optional extensions
 
-Some skills work best when paired with optional MCP servers or Python toolchains beyond SE Ranking. Each extension is opt-in — the skills that use it degrade gracefully when it's absent: they fall back to a lower-fidelity method, or note what was unavailable, rather than failing the run.
+Some skills work best when paired with optional MCP servers or Python toolchains beyond DataForSEO. Each extension is opt-in — the skills that use it degrade gracefully when it's absent: they fall back to a lower-fidelity method, or note what was unavailable, rather than failing the run.
 
 The fastest way to install both extensions is the top-level `install.sh` ([Install option 3](#3-manual-install-only-if-you-want-seo-google-or-the-optional-extensions)). The per-extension scripts below are equivalent — use them when you only want one of the two, or when you've already cloned the repo and want to install/re-install a single extension without re-running the wrapper.
 
@@ -178,7 +178,7 @@ The skills chain naturally. A typical agency workflow:
 ## Repository layout
 
 ```
-seo-skills/
+d4s/
 ├── .claude-plugin/
 │   ├── marketplace.json                # Claude Code marketplace manifest
 │   └── plugin.json                     # Plugin manifest
@@ -236,7 +236,7 @@ seo-skills/
 │   │   ├── SKILL.md
 │   │   ├── assets/templates/           # 3 report templates (cwv-audit, gsc-performance, indexation)
 │   │   └── references/                 # 10 API reference docs (auth, GSC, PSI, CrUX, GA4, etc.)
-│   └── seo-api/                        # SE Ranking API integration architect
+│   └── seo-api/                        # DataForSEO API integration architect
 │       ├── SKILL.md
 │       └── references/                 # auth-and-keys, rate-limits-and-credits, api-surface-map, integration-patterns
 ├── scripts/                            # Python scripts called by seo-google (forked from AgriciDaniel/claude-seo, MIT)
@@ -275,16 +275,11 @@ Every skill writes its output to a folder named `{skill-slug}-{target-slug}-{YYY
 
 ## Rate limits and costs
 
-The SE Ranking MCP server has two namespaces with different rate limits:
-
-- **Data API** (`DATA_*`): 10 requests per second. Charges API credits per call.
-- **Project API** (`PROJECT_*`): 5 requests per second. Retrieval and management calls do not charge; writes consume quota slots.
-
-Every skill in this repo is designed to pace sequentially inside these limits. The largest skills (`seo-competitor-gap-analysis` with full keyword dumps, `seo-keyword-cluster` with 20 seeds) can consume thousands of credits on large domains. Check `DATA_getCreditBalance` before running on production accounts, and use the `ceiling` parameters the skills document to cap cost.
+The DataForSEO MCP server charges per API call. Costs vary by endpoint — check the [DataForSEO pricing page](https://dataforseo.com/prices) for current rates. Every skill in this repo is designed to pace sequentially and surface cost estimates before running expensive operations. The largest skills (`seo-competitor-gap-analysis` with full keyword dumps, `seo-keyword-cluster` with 20 seeds) can be costly on large domains — use the `ceiling` parameters the skills document to cap spend.
 
 ## Contributing
 
-This repo is the official Skills catalogue for the SE Ranking MCP server. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the skill-authoring template, required structure, MCP tool conventions, and PR checklist.
+This repo is the Skills catalogue for the DataForSEO MCP server, maintained by [DonnaPro](https://donnapro.com) (zoran@donnapro.com). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the skill-authoring template, required structure, MCP tool conventions, and PR checklist.
 
 - **Bug reports** — open an issue with the skill name, the input, and the unexpected output.
 - **New skills** — PRs welcome. Use the template in `CONTRIBUTING.md`.
@@ -292,9 +287,8 @@ This repo is the official Skills catalogue for the SE Ranking MCP server. See [`
 
 ## Links
 
-- SE Ranking: https://seranking.com
-- SE Ranking API: https://seranking.com/api.html
-- SE Ranking remote MCP: https://seranking.com/api/integrations/mcp
+- DataForSEO: https://dataforseo.com
+- DataForSEO API docs: https://docs.dataforseo.com
 - Claude Agent Skills: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
 - Claude Code Plugins: https://code.claude.com/docs/en/plugins
 

@@ -11,12 +11,12 @@ Compare AI-search visibility for a target brand against competitors across every
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - User provides: (a) target domain and its brand name, (b) list of competitor domains and brand names, (c) country (default: `us`), and (d) optionally, which engines to analyse (default: all supported: `ai-overview`, `chatgpt`, `perplexity`, `gemini`, `ai-mode`).
 
 ## Process
 
-1. **Leaderboard snapshot** `DATA_getAiOverviewLeaderboard`
+1. **Leaderboard snapshot** `ai_opt_llm_ment_top_domains`
    - Pull the AIO leaderboard for the target domain's category in the target country.
    - Capture mention counts and share percentages per engine, per domain.
 
@@ -24,7 +24,7 @@ Compare AI-search visibility for a target brand against competitors across every
    - Build a table: rows = domains (target + competitors), columns = engines, cells = % share of voice.
    - Highlight the leader per engine and the worst performer.
 
-3. **Prompt sampling per domain** `DATA_getAiPromptsByBrand`, `DATA_getAiPromptsByTarget`
+3. **Prompt sampling per domain** `ai_opt_llm_ment_search`
    - For each domain (target and each competitor):
      - Pull 10 ChatGPT prompts where the domain appears as a source (link mention).
      - Pull 10 ChatGPT prompts where the brand is mentioned by name.
@@ -95,5 +95,5 @@ Absent from: {cluster 3}, {cluster 4}
 - Do not hallucinate citation counts. If the API returns zero prompts for a given domain/engine, report zero, do not estimate.
 - For each competitor, validate the brand-name match in the prompt text. Sometimes "Wix" appears in a sentence about "wiktionary" or a person's name. Flag ambiguous matches in the raw-prompt file.
 - `base_domain` scope is the default; do not narrow to `subdomain` unless the user asks.
-- Respect Data API rate limit: 10 requests per second. With 5 domains and 2 prompt queries per engine per domain, pace the loop.
+- Respect DataForSEO Data API rate limit: 10 requests per second. With 5 domains and 2 prompt queries per engine per domain, pace the loop.
 - The report is not a one-time artefact. Recommend the user re-run monthly and diff results to see ranking momentum.

@@ -12,7 +12,7 @@ This is the "what should we work on next quarter" skill. It does not replace spe
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - `seo-firecrawl` available for site mapping and head metadata (optional but recommended).
 - User provides:
   - Target domain.
@@ -28,24 +28,24 @@ This is the "what should we work on next quarter" skill. It does not replace spe
    > skills (seo-technical-audit, seo-page, seo-content-audit, seo-drift) will enrich
    > their outputs with real CrUX / GSC / GA4 / URL Inspection data automatically.
    ```
-   - If creds are missing, the plan continues with SE Ranking-only data and prints:
+   - If creds are missing, the plan continues with DataForSEO data only and prints:
    ```
    > Google APIs not configured. To enrich downstream phases with real CWV / GSC /
    > GA4 / indexation data, run `bash extensions/google/install.sh`. Plan continues
-   > with SE Ranking data only.
+   > with DataForSEO data only.
    ```
    - This is the **lightest possible auto-spawn** — `seo-plan` doesn't run `seo-google` itself (transferring friction to a single command is theirs' anti-pattern we critiqued in `EVAL_RESULT_v2.md`); it surfaces the option so the user can opt in or out before specialist skills run. See `skills/seo-google/references/cross-skill-integration.md` § "seo-plan" for the full rationale.
 
-1. **Detect business type** `DATA_getDomainOverviewWorldwide`, plus a Firecrawl `scrape` of the homepage if available
+1. **Detect business type** `dataforseo_labs_google_domain_rank_overview`, plus a Firecrawl `scrape` of the homepage if available
    - Inspect title, H1, JSON-LD types, primary nav patterns.
    - Classify as one of: `saas`, `ecommerce`, `local`, `publisher`, `agency`, `b2b-services`, `marketplace`. If ambiguous, ask the user once.
    - Business type drives template selection (see step 6).
 
-2. **Domain baseline** `DATA_getDomainOverviewWorldwide`, `DATA_getDomainOverviewHistory`, `DATA_getDomainAuthority`, `DATA_getBacklinksSummary`
+2. **Domain baseline** `dataforseo_labs_google_domain_rank_overview`, `dataforseo_labs_google_historical_rank_overview`, `backlinks_bulk_ranks`, `backlinks_summary`
    - Capture: organic keywords, organic traffic estimate, DA, backlink profile health, top countries, traffic trend over the last 12 months.
    - This sets the "where you are now" anchor.
 
-3. **Competitive frame** `DATA_getDomainCompetitors`
+3. **Competitive frame** `dataforseo_labs_google_competitors_domain`
    - Pull top 5–10 organic competitors.
    - For each: organic keywords, traffic share, DA, top topical clusters they own.
    - Identifies who the user is *actually* competing with on the SERP (often different from who they think).
@@ -58,28 +58,27 @@ This is the "what should we work on next quarter" skill. It does not replace spe
      - `seo-ai-search-share-of-voice-*`
      - `seo-backlinks-profile-*`
    - For each present folder, ingest its primary deliverable (`TECH-AUDIT.md`, `VERDICT.md` rollup, `GAPS.md`, `REPORT.md`, `PROFILE.md` respectively).
-   - **4b. Build the missing list.** For each prerequisite that did not have a fresh output, look up its credit-cost figure from the specialist's own SKILL.md (read those when forming the prompt — figures may drift):
+   - **4b. Build the missing list.** For each prerequisite that did not have a fresh output:
      - `seo-technical-audit` → varies by page count for a fresh audit; ~6 Firecrawl credits for the modern-signals step. Cite "varies; check page count" if no recent audit cached.
-     - `seo-content-audit` → ~10–15 SE Ranking credits + 1 Firecrawl credit per audited URL (default cap 50; for the seo-plan top-10-pages scope, expect ~10–15 SE Ranking + ~10 Firecrawl).
-     - `seo-competitor-gap-analysis` → ~30–80 credits for 10 seeds.
-     - `seo-ai-search-share-of-voice` → ~10–20 credits (leaderboard + ~20 prompts × N domains).
-     - `seo-backlinks-profile` → ~25–40 SE Ranking credits.
+     - `seo-content-audit` → ~1 Firecrawl credit per audited URL (default cap 50).
+     - `seo-competitor-gap-analysis` → multiple DataForSEO calls for 10 seeds.
+     - `seo-ai-search-share-of-voice` → multiple DataForSEO API calls.
+     - `seo-backlinks-profile` → multiple DataForSEO backlink API calls.
    - **4c. Print the confirmation prompt** (single block, exactly this shape, with the missing-list filtered to only what is actually missing):
    ```
    To produce a defensible plan, seo-plan needs outputs from N specialists not yet
    run for {domain}:
-   - seo-technical-audit (~{N} credits)
-   - seo-content-audit (~{N} credits)
-   - seo-competitor-gap-analysis (~{N} credits)
-   - seo-ai-search-share-of-voice (~{N} credits)
-   - seo-backlinks-profile (~{N} credits)
-   Total estimated cost: ~{N} credits.
+   - seo-technical-audit
+   - seo-content-audit
+   - seo-competitor-gap-analysis
+   - seo-ai-search-share-of-voice
+   - seo-backlinks-profile
    Run them now in this session? (y/N — default N preserves the existing v2.6 behavior of asking the user to run them manually first)
    ```
    - **4d. If user answers `y`:** dispatch each missing specialist in this order, ingesting each primary deliverable as it completes:
      - **Parallel batch (independent):** `seo-technical-audit`, `seo-competitor-gap-analysis`, `seo-ai-search-share-of-voice`, `seo-backlinks-profile`.
-     - **Sequential after the batch:** `seo-content-audit` — its top-10-pages scope depends on knowing the top traffic pages from `seo-competitor-gap-analysis` / `DATA_getDomainKeywords`, so it must run after the gap-analysis batch completes.
-     - Each specialist runs its own `DATA_getCreditBalance` preflight and surfaces cost before proceeding (their existing behaviour — `seo-plan` does not bypass it). If any specialist aborts on a credit-balance check, surface that abort to the user and let them decide whether to top up or skip.
+     - **Sequential after the batch:** `seo-content-audit` — its top-10-pages scope depends on knowing the top traffic pages from `seo-competitor-gap-analysis` / `dataforseo_labs_google_ranked_keywords`, so it must run after the gap-analysis batch completes.
+     - Each specialist runs its own preflight and surfaces status before proceeding. If any specialist aborts, surface that abort to the user and let them decide whether to skip or cancel the rest of the dispatch.
      - After every dispatch, ingest the new folder the same way step 4a does.
    - **4e. If user answers `N` (or anything else — default `N`):** fall through to the existing v2.6 behaviour — the plan opens with **Phase 0: Discovery**, and running each missing specialist becomes the first sprint's work. This preserves the user's control over credit spend in environments where the specialists should be scheduled or batched separately.
 
@@ -93,7 +92,7 @@ This is the "what should we work on next quarter" skill. It does not replace spe
 6. **Apply business-type template** (templates differ — pick one and parameterise)
    - **saas** → product-led pillars + integration pages + comparison/alternatives + JTBD content.
    - **ecommerce** → category page hygiene + product schema + faceted-nav indexation rules + review aggregation.
-   - **local** → GBP optimisation + location pages + citation cleanup (note: we don't have a `seo-local` skill yet — flag this as a manual sub-step or external).
+   - **local** → GBP optimisation + location pages + citation cleanup (use `seo-local` for full local-pack audit).
    - **publisher** → topical clusters + author E-E-A-T + freshness cadence + AI-Search citations.
    - **agency** → service pages + case studies + comparison content + lead-gen LP (use `seo-agency-landing-page`).
    - **b2b-services** → industry-specific landing pages + thought-leadership clusters + decision-stage content.
@@ -198,15 +197,15 @@ Run Phase 1 work items. After week 4, run `seo-drift compare` against the baseli
 
 ## Tips
 
-- **Default is "no auto-dispatch."** The confirm prompt in step 4c defaults to `N`. If the user just hits Enter (or answers anything other than an explicit `y`), `seo-plan` falls through to the v2.6 Phase-0 behaviour and lists the missing specialists as the first sprint's work. This preserves user control over credit spend — important when the user is on a tight SE Ranking budget or wants to schedule specialists separately.
-- **Auto-dispatch (the `y` path) is the convenience option.** When the user wants a finished plan in one session and is comfortable with the displayed credit estimate, the `y` path runs the missing specialists in the optimal parallel-then-sequential order described in step 4d, ingests their outputs, and proceeds straight into pillar scoring (step 5). No silent re-execution: every dispatch is gated by the single confirmation in step 4c.
-- **Auto-dispatch respects each specialist's own credit-balance preflight.** Each specialist already calls `DATA_getCreditBalance` at its first step and surfaces cost before consuming credits — `seo-plan` does not bypass that gate. If a specialist aborts on its preflight (insufficient credits, user declines its inner cost prompt), `seo-plan` surfaces the abort and lets the user choose to top up, skip that specialist (and let it remain a Phase-0 work item), or cancel the rest of the dispatch.
+- **Default is "no auto-dispatch."** The confirm prompt in step 4c defaults to `N`. If the user just hits Enter (or answers anything other than an explicit `y`), `seo-plan` falls through to the v2.6 Phase-0 behaviour and lists the missing specialists as the first sprint's work. This preserves user control — important when the user wants to schedule specialists separately.
+- **Auto-dispatch (the `y` path) is the convenience option.** When the user wants a finished plan in one session, the `y` path runs the missing specialists in the optimal parallel-then-sequential order described in step 4d, ingests their outputs, and proceeds straight into pillar scoring (step 5). No silent re-execution: every dispatch is gated by the single confirmation in step 4c.
+- **Auto-dispatch respects each specialist's own preflight.** If a specialist aborts, `seo-plan` surfaces the abort and lets the user choose to skip that specialist (and let it remain a Phase-0 work item) or cancel the rest of the dispatch.
 - **Auto-detect business type cheaply.** Homepage `<title>`, schema `@type`, and top-nav anchors are usually enough. Ask the user only when truly ambiguous.
 - **The lead theme is the lowest pillar score.** Don't pick the pillar the user is most excited about — pick the one the data says is the constraint. Surface this gap explicitly if they conflict.
 - **Three phases, even for 30-day horizons.** Compress, don't drop. A 30-day plan is foundations (weeks 1–2), build (weeks 2–3), measure (week 4). The structure forces sequencing discipline.
 - **Targets must be defensible.** Don't write "double organic traffic in Q1." Tie each target to a base rate from competitor data or category benchmarks. If the math doesn't support a target, say so and lower it.
 - **Critical path is the deliverable.** Most teams can do *something*; few know what's blocking what. Surface the dependency chain — that's where this skill earns its keep.
-- **Local SEO is a known gap.** If business type is `local`, flag that we don't have a `seo-local` skill yet and recommend manual GBP audit as a Phase 0 item. Don't pretend coverage we don't have.
+- **Local SEO.** If business type is `local`, use the `seo-local` skill for GBP and local-pack signals. Use `dataforseo_labs_google_ranked_keywords` to check current keyword positions and `dataforseo_labs_google_historical_rank_overview` for historical trends.
 - **Don't generate work items the team can't execute.** If the user said "no JS-render changes allowed," drop those items even if they're high-leverage. A plan that won't ship is worse than a smaller plan that does.
 - **Update cadence.** A 90-day plan should be re-run at the 90-day mark with `seo-drift compare` against the original baseline as input. Drift output rewrites the "Where you are" section; everything downstream updates from there.
 

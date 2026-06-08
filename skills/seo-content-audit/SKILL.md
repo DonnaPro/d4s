@@ -11,15 +11,15 @@ Score an existing piece of content against modern E-E-A-T (Experience, Expertise
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available.
 - User provides: (a) the URL of an existing piece of content (or pasted content + intended URL), (b) target keyword the content is meant to rank for. Optional: target country (default `us`).
 
 ## Process
 
 1. **Fetch content** `WebFetch` (always) + `mcp__firecrawl-mcp__firecrawl_scrape` (when available)
-   - **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (credit balance, Firecrawl availability, Google APIs). Skill-specific notes:
-     - Estimated SE Ranking cost for this skill: ~10–15 credits typical (AIO context + AIO prompt sampling for the target keyword + audited URL).
+   - **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (Firecrawl availability, Google APIs). Skill-specific notes:
+     - Estimated DataForSEO API cost for this skill: ~10–15 calls typical (AIO context + AIO prompt sampling for the target keyword + audited URL).
      - Firecrawl: optional with WebFetch fallback, 1 Firecrawl credit per URL audited (default cap 50 URLs, hard cap 200). Surface the projected Firecrawl credit count before continuing. Pass `--no-firecrawl` to force WebFetch-only inspection (lower-confidence veto checks; see step 4 caveat).
      - Google APIs: tier 2 (GA4 available) unlocks step 3b (GA4 organic traffic on the audited URL) after the AIO context step. See `skills/seo-google/references/cross-skill-integration.md` § "seo-content-audit" for the full recipe.
    - **WebFetch first** (free, instant): pull the markdown for word count, H-tag hierarchy, source citations (links to authorities, numbered references), images, tables, code blocks, comment thread.
@@ -30,13 +30,13 @@ Score an existing piece of content against modern E-E-A-T (Experience, Expertise
      - DOM-level byline detection: locate the structural byline (`<a rel="author">`, `<meta name="author">`, `<span class="byline">`, `[itemprop="author"]`). Distinguish a real byline element from prose mentions ("Written by Jane in collaboration..." in body text is not a byline; `<a rel="author">Jane Doe</a>` is).
    - **If Firecrawl unavailable:** WebFetch portion runs unchanged. Mark schema-type detection and structural byline detection as `(skipped — Firecrawl required)` in `evidence/01-content-snapshot.md`. Step 4's veto checks #1 and #4 fall back to prose-level inspection (less reliable) — surface that caveat in `VERDICT.md`.
 
-2. **AIO context** `DATA_getAiOverview` and `DATA_getAiOverviewLeaderboard`
+2. **AIO context** `serp_organic_live_advanced` and `ai_opt_llm_ment_top_domains`
    - For the target keyword: is there an AIO?
    - Who is cited in the AIO?
    - Is the candidate URL cited?
    - What patterns characterise the cited sources (publication tier, freshness, structure)?
 
-3. **AIO prompt sampling** `DATA_getAiPromptsByTarget`
+3. **AIO prompt sampling** `ai_opt_llm_ment_search`
    - Sample LLM prompts where the target URL's domain appears as a source.
    - Cross-reference with the candidate URL — does it show up in any sampled prompts?
 
@@ -151,7 +151,7 @@ See:
 ## Tips
 
 - Respect rate limit. AIO + AIO-prompts queries are ~5–10 calls; plenty of headroom.
-- Call `DATA_getCreditBalance` before running. ~10–15 SE Ranking credits typical, plus 1 Firecrawl credit per URL audited when Firecrawl is installed (default cap 50 URLs).
+- Estimated DataForSEO API cost: ~10–15 calls typical, plus 1 Firecrawl credit per URL audited when Firecrawl is installed (default cap 50 URLs).
 - The thresholds (75% E-E-A-T, 70% CITE) are starting points. Tune per domain — a YMYL site (medical, financial) should require higher (85%/80%); a general-interest blog can run lower (65%/60%).
 - The veto checks are not negotiable. A piece with anonymous authorship on a YMYL topic doesn't pass regardless of score.
 - For pieces that score "publish with fixes," the top-5 list is the deliverable. Hand it to the writer; re-audit after fixes.

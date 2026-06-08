@@ -1,43 +1,60 @@
 # Rate Limits & Credits
 
-Everything the `seo-api` skill needs to forecast cost and pace requests against the Data API and Project API.
+Everything the `seo-api` skill needs to forecast cost and pace requests against the DataForSEO API.
 
 ## Rate limits
 
-**Per API key, not per IP.** All threads, workers, and servers sharing one key contribute to the same RPS budget. For production fan-outs, mint multiple keys via the API Dashboard.
+DataForSEO does not publish a single universal rate limit — it varies by endpoint category and subscription plan. Safe conservative defaults:
 
-| API | Standard limit | Trial accounts |
+| Endpoint category | Safe default (req/min) | Notes |
 |---|---|---|
-| Data API | **10 requests per second** | 1 RPS (can be raised on request — email api@seranking.com) |
-| Project API | **5 requests per second** | 1 RPS (same path to raise) |
+| DataForSEO Labs | ~60 req/min | Historical/aggregated data; lower throughput |
+| SERP (live) | ~100 req/min | Real-time scraping; plan-dependent |
+| Backlinks | ~60 req/min | Index queries |
+| On-Page (Lighthouse) | ~20 req/min | Lighthouse is resource-intensive |
+| On-Page (instant_pages) | ~60 req/min | Faster than Lighthouse |
+| AI Optimization (ChatGPT scraper) | ~20 req/min | Slow due to LLM calls |
+| Keyword Data | ~60 req/min | |
+| Content Analysis | ~60 req/min | |
 
-**Async operations.** Endpoints like `/backlinks/export` create a task; subsequent polls of `*ExportStatus` count against the same RPS budget (but cost 0 credits).
+**These are safe conservative estimates, not published SLAs.** If you're running large batch jobs, start low and ramp up — a `429` response will tell you when you've hit the actual limit.
 
-**Custom limits.** Production workloads needing higher throughput: contact `api@seranking.com`. Custom plans are available.
+**Rate limits are per account**, not per IP. All concurrent workers sharing the same `DATAFORSEO_USERNAME` share the same budget.
 
 ## Handling 429 — exponential backoff with jitter
 
 ```python
-import random, time, requests
+import random, time, requests, base64, os
 
-def call(url, headers, max_attempts=5):
+USERNAME = os.environ["DATAFORSEO_USERNAME"]
+PASSWORD = os.environ["DATAFORSEO_PASSWORD"]
+CREDS = base64.b64encode(f"{USERNAME}:{PASSWORD}".encode()).decode()
+HEADERS = {"Authorization": f"Basic {CREDS}", "Content-Type": "application/json"}
+
+def call(url, payload, max_attempts=5):
     delay = 1.0
     for attempt in range(max_attempts):
-        r = requests.get(url, headers=headers)
+        r = requests.post(url, json=payload, headers=HEADERS)
         if r.status_code != 429:
-            return r
+            r.raise_for_status()
+            return r.json()
         jitter = random.uniform(-0.2, 0.2) * delay
         time.sleep(delay + jitter)
         delay *= 2
-    r.raise_for_status()
+    raise RuntimeError(f"Rate-limited after {max_attempts} attempts on {url}")
 ```
 
 ```typescript
-async function call(url: string, headers: HeadersInit, maxAttempts = 5): Promise<Response> {
+async function call(url: string, payload: unknown, maxAttempts = 5): Promise<unknown> {
+  const credentials = btoa(`${process.env.DATAFORSEO_USERNAME}:${process.env.DATAFORSEO_PASSWORD}`);
+  const headers = { Authorization: `Basic ${credentials}`, "Content-Type": "application/json" };
   let delay = 1000;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const r = await fetch(url, { headers });
-    if (r.status !== 429) return r;
+    const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
+    if (r.status !== 429) {
+      if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+      return r.json();
+    }
     const jitter = (Math.random() * 0.4 - 0.2) * delay;
     await new Promise((resolve) => setTimeout(resolve, delay + jitter));
     delay *= 2;
@@ -46,190 +63,195 @@ async function call(url: string, headers: HeadersInit, maxAttempts = 5): Promise
 }
 ```
 
-**Why jitter matters.** Without it, multiple clients hitting the limit simultaneously synchronise their retries and re-hit the limit at the next interval — the thundering-herd problem. A ±20% randomisation spreads them out.
+**Why jitter matters.** Without it, multiple workers hitting the limit simultaneously synchronise their retries and re-hit the limit at the next interval. A ±20% randomisation spreads them out.
 
-**Simple delays (use with caution).** Because the API uses a rolling 1s window, a brief pause (200–500ms) is enough for occasional, isolated overages. But it doesn't survive bursty traffic — use exponential backoff for anything production.
+## Client-side throttling (proactive)
 
-## Client-side throttling
-
-Better than reactive 429 handling: proactively pace requests to stay under the limit.
+Better than reacting to 429s: pace requests to stay under the limit.
 
 ```python
 import time
 from collections import deque
 
 class RateLimiter:
-    def __init__(self, rps: int):
-        self.rps = rps
+    def __init__(self, rpm: int):
+        self.rpm = rpm
         self.calls = deque()
 
     def acquire(self):
         now = time.monotonic()
-        while self.calls and self.calls[0] < now - 1.0:
+        window = 60.0
+        while self.calls and self.calls[0] < now - window:
             self.calls.popleft()
-        if len(self.calls) >= self.rps:
-            time.sleep(1.0 - (now - self.calls[0]))
+        if len(self.calls) >= self.rpm:
+            wait = window - (now - self.calls[0])
+            time.sleep(wait + 0.1)
         self.calls.append(time.monotonic())
 
-limiter = RateLimiter(rps=10)
-for url in urls:
+# Example: pace DataForSEO Labs at 60 req/min
+limiter = RateLimiter(rpm=60)
+for payload in payloads:
     limiter.acquire()
-    call(url, headers)
+    result = call(url, payload)
 ```
 
-## Credit system (Data API)
+## Credit system
 
-Pay-as-you-go. Plans start at 1 million credits.
+DataForSEO charges credits per API call. Credits are pre-purchased — requests are rejected with `402` when balance runs out.
 
-### Two billing models
+### Billing model
 
-1. **Cost per record** — credits charged per row returned. Example: `/backlinks/summary` at 100 credits/record, request 250 domains → 25,000 credits.
-2. **Cost per request** — flat fee per successful call regardless of payload size. Example: `/keywords/research` at 5 credits/request, 1000 keywords returned → still 5 credits.
+Most endpoints charge a flat fee per task (one item in the request array). Some endpoints charge per record returned.
 
-**Failed requests are free.** 4xx and 5xx never consume credits. Don't over-engineer error retries to "save credits".
+- **Per task (flat):** most Labs, SERP, and summary endpoints — charged once per item in the POST array, regardless of how many results are returned.
+- **Per record:** list endpoints where the charge scales with result count — e.g., `backlinks_backlinks` charges per backlink record returned.
 
-### Reading current balance
+**Failed requests (4xx, 5xx) are not billed** unless the task was successfully created and the failure is in processing.
+
+### Checking credit balance
 
 ```bash
-curl -X GET 'https://api.seranking.com/v1/account/subscription' \
-  -H 'Authorization: Token YOUR_API_KEY'
+curl -u 'your@email.com:your_api_password' \
+  'https://api.dataforseo.com/v3/appendix/user_data'
 ```
 
-Or via MCP: `DATA_getCreditBalance` (0 credits, returns `units_left`).
+Response includes:
 
-Response shape:
 ```json
 {
-  "subscription_info": {
-    "status": "active",
-    "start_date": "2026-01-18 14:20:02",
-    "expiration_date": "2027-01-18 14:20:02",
-    "units_limit": 5000000,
-    "units_left": 4975033
+  "money": {
+    "balance": 150.00,
+    "currency": "USD"
   }
 }
 ```
 
-### Forecasting
+DataForSEO bills in USD, not a named "credit" unit — the balance is dollar-denominated. Top up at: <https://app.dataforseo.com/billing>
+
+### Forecasting cost
 
 Before running a large workflow:
 
-1. List every API call.
-2. Multiply by per-call cost (see canonical table at <https://seranking.com/api/data/getting-started/#unit-costs>, or check each MCP tool's own description for the per-tool figure).
-3. Sum.
-4. Compare against `units_left`.
+1. List every tool call.
+2. Check the per-endpoint pricing at: <https://docs.dataforseo.com/v3/> (each endpoint's docs page lists its price).
+3. Multiply by call count.
+4. Compare against account balance.
 
-**Worked example.** Pull backlink summaries for 250 domains + full export for one:
+**Approximate pricing reference (verify against docs before large runs — prices change):**
 
-| Call | Records | Per-record cost | Total |
-|---|---|---|---|
-| `/backlinks/summary` | 250 | 100 credits | 25,000 |
-| `/backlinks/export` (task creation) | 50,000 (links in target domain) | 1 credit | 50,000 |
-| `/backlinks/export/status` (poll 2×) | 2 | 0 credits/request | 0 |
-| **Total** | | | **75,000 credits** |
+| Tool | Approx. cost |
+|---|---|
+| `serp_organic_live_advanced` | ~$0.0015 per task |
+| `dataforseo_labs_google_domain_rank_overview` | ~$0.0025 per task |
+| `dataforseo_labs_google_ranked_keywords` | ~$0.0025 per task |
+| `dataforseo_labs_google_keyword_ideas` | ~$0.0025 per task |
+| `dataforseo_labs_bulk_keyword_difficulty` | ~$0.0025 per task (up to 1000 KWs) |
+| `backlinks_summary` | ~$0.002 per task |
+| `backlinks_backlinks` | ~$0.00001 per record returned |
+| `on_page_instant_pages` | ~$0.0025 per task |
+| `on_page_lighthouse` | ~$0.0075 per task |
+| `ai_optimization_chat_gpt_scraper` | ~$0.01–$0.03 per task |
 
-### Insufficient credits — 403
+**Always verify pricing in the DataForSEO docs before a large run.** Prices vary by plan tier and are updated periodically.
 
-```json
-{
-  "error": {
-    "code": 403,
-    "message": "Insufficient funds",
-    "description": "Your current credit balance is too low to process this request."
-  }
-}
-```
-
-No partial billing — the entire request is rejected. Top up at the API Dashboard or contact `api@seranking.com` for overage billing.
-
-## Plan limits (Project API)
-
-The Project API doesn't use credits. It consumes the same limits as the SE Ranking web platform.
-
-| Action | Limit consumed | When |
-|---|---|---|
-| `PROJECT_createProject` | 1 Site | On creation |
-| `PROJECT_addKeywords` | N Keywords | Each new keyword tracked |
-| `PROJECT_runPositionCheck` | (free — uses tracking schedule) | — |
-| `PROJECT_addAuditSourcePages` + audit run | N Audit Pages | Per page crawled |
-| `PROJECT_createAudit` (advanced) | Audit Pages × pages | Per crawl |
-| `PROJECT_addPrompts` | N AIRT Prompts | Per prompt added to AIRT |
-| `PROJECT_addCompetitor` | (free) | — |
-| `PROJECT_addProjectBacklink` | (free — uses Backlinks tier) | — |
-
-**Read the user's plan limits before mutating.** `PROJECT_getUserProfile` returns the current plan tier and remaining quota. If the integration would push a limit over, surface upfront and ask whether to proceed or downsize.
-
-### Insufficient plan limits
+### Insufficient balance — 402
 
 ```json
 {
-  "error": {
-    "code": 403,
-    "message": "Limit reached",
-    "description": "Cannot add 50 keywords — you have 32 keywords remaining on the Pro plan."
-  }
+  "status_code": 402,
+  "status_message": "PaymentRequired",
+  "tasks": null
 }
 ```
 
-Fix paths:
-- Upgrade plan: <https://seranking.com/subscription.html>.
-- Free up quota: delete unused projects, keywords, AIRT prompts via the matching `PROJECT_delete*` tool.
+No partial billing — the entire request batch is rejected. Top up at <https://app.dataforseo.com/billing>.
 
-## Per-endpoint cost cheat-sheet
+## Combined rate-limit + error safety pattern
 
-Credit costs are **not** carried in the MCP tool descriptions — the canonical source is the per-endpoint pages on `seranking.com/api/data/*` and the unit-costs table at <https://seranking.com/api/data/getting-started/#unit-costs>. Always confirm there before a large run; SE Ranking updates costs periodically.
-
-**Verified against the docs (2026-05-22):**
-
-| Endpoint | MCP tool | Cost |
-|---|---|---|
-| Account subscription | `DATA_getSubscription` | 0 |
-| Credit balance | `DATA_getCreditBalance` | 0 |
-| Domain overview (worldwide) | `DATA_getDomainOverviewWorldwide` | 100 / request |
-| Domain overview (regional) | `DATA_getDomainOverviewDatabases` | 100 / request |
-| Domain competitors | `DATA_getDomainCompetitors` | 100 / request (flat — *not* per-competitor) |
-| Backlinks summary | `DATA_getBacklinksSummary` | 100 / target |
-
-For any endpoint not in this table, read the **"Cost:"** line on its docs page before forecasting — do not guess a figure. Apply the two billing models described above: **per request** (flat fee per call — most overview / summary / competitor endpoints) and **per record** (one charge per row — list and export endpoints; e.g. `DATA_exportBacklinksData` charges per backlink record, `DATA_getDomainKeywords` per keyword returned). When unsure, run the smallest possible request first and read the actual charge against the docs.
-
-## Combined rate-limit + credit safety pattern
-
-The end-to-end shape for any production integration:
+The end-to-end shape for any production DataForSEO integration:
 
 ```python
-import time, random, requests
+import time, random, requests, base64, os
+from collections import deque
 
-API_KEY = os.environ["SERANKING_API_KEY"]
-HEADERS = {"Authorization": f"Token {API_KEY}"}
-BASE = "https://api.seranking.com/v1"
+USERNAME = os.environ["DATAFORSEO_USERNAME"]
+PASSWORD = os.environ["DATAFORSEO_PASSWORD"]
+BASE = "https://api.dataforseo.com/v3"
 
-class SERankingClient:
-    def __init__(self, rps=10):
-        self.rps = rps
+class DataForSEOClient:
+    def __init__(self, rpm=60):
+        creds = base64.b64encode(f"{USERNAME}:{PASSWORD}".encode()).decode()
+        self.headers = {"Authorization": f"Basic {creds}", "Content-Type": "application/json"}
+        self.rpm = rpm
         self.calls = deque()
 
     def _throttle(self):
         now = time.monotonic()
-        while self.calls and self.calls[0] < now - 1.0:
+        while self.calls and self.calls[0] < now - 60.0:
             self.calls.popleft()
-        if len(self.calls) >= self.rps:
-            time.sleep(1.0 - (now - self.calls[0]))
+        if len(self.calls) >= self.rpm:
+            wait = 60.0 - (now - self.calls[0])
+            time.sleep(wait + 0.1)
         self.calls.append(time.monotonic())
 
-    def get(self, path, params=None, max_attempts=5):
+    def post(self, path, payload, max_attempts=5):
         delay = 1.0
         for attempt in range(max_attempts):
             self._throttle()
-            r = requests.get(f"{BASE}{path}", headers=HEADERS, params=params)
+            r = requests.post(f"{BASE}{path}", json=payload, headers=self.headers)
             if r.status_code == 429:
                 time.sleep(delay + random.uniform(-0.2, 0.2) * delay)
                 delay *= 2
                 continue
-            if r.status_code == 403 and "Insufficient funds" in r.text:
-                raise RuntimeError("Out of credits — top up before retrying.")
+            if r.status_code == 402:
+                raise RuntimeError("Insufficient DataForSEO balance — top up before retrying.")
             r.raise_for_status()
-            return r.json()
+            data = r.json()
+            # DataForSEO wraps results in tasks[0].result
+            tasks = data.get("tasks", [])
+            if tasks and tasks[0].get("status_code") == 20000:
+                return tasks[0].get("result", [])
+            # Surface API-level errors
+            if tasks:
+                raise RuntimeError(f"DataForSEO task error: {tasks[0].get('status_message')}")
+            return data
         raise RuntimeError(f"Rate-limited after {max_attempts} attempts on {path}")
+
+# Usage
+client = DataForSEOClient(rpm=60)
+result = client.post("/dataforseo_labs/google/domain_rank_overview/live", [
+    {"target": "acme.com", "location_code": 2840, "language_code": "en"}
+])
 ```
 
-This handles the common cases: rate-limit pacing, exponential backoff with jitter, terminal 403, transient 5xx. Tune `rps` to match the API (5 for Project, 10 for Data).
+This handles: proactive rate pacing, exponential backoff with jitter, terminal 402 (no balance), and DataForSEO's task-level error codes. Tune `rpm` per endpoint category — use 20 for Lighthouse, 60 for Labs, 100 for SERP.
+
+## DataForSEO response envelope
+
+Every DataForSEO response wraps results in a consistent envelope. Always check `tasks[0].status_code`:
+
+```json
+{
+  "version": "0.1.20231114",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "0.2345 sec.",
+  "tasks": [
+    {
+      "id": "...",
+      "status_code": 20000,
+      "status_message": "Ok.",
+      "result": [ ... ]
+    }
+  ]
+}
+```
+
+| `status_code` | Meaning |
+|---|---|
+| `20000` | Success |
+| `20100` | Task created (async — poll for result) |
+| `40000` | Bad request (check parameters) |
+| `40101` | Auth error |
+| `40200` | Insufficient balance |
+| `50000` | Internal server error (retry) |

@@ -12,7 +12,7 @@ Git for SEO. Capture a snapshot of a domain or URL's SEO state ("baseline"), the
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available (for URL-mode page fingerprinting).
 - User provides: target domain or URL, plus a subcommand (`baseline`, `compare`, `history`).
 
@@ -42,15 +42,14 @@ List all stored baselines for the target with their dates and key metrics (DA, t
 
 1. **Validate target.** Determine if domain or URL. Domain = `example.com`; URL = anything starting with `http(s)://`.
    - **SSRF protection (URL mode).** If target is a URL, validate via `python3 -c "from scripts.google_auth import validate_url; import sys; sys.exit(0 if validate_url('{target}') else 1)"` (or import `validate_url` directly in any helper script). Reject loopback (127.0.0.1, ::1, localhost), private IP ranges (10/8, 172.16/12, 192.168/16), link-local (169.254/16), and Google metadata endpoints. If validation fails, abort with a clear error and don't proceed to fetch — feeding an unvalidated URL into Firecrawl / WebFetch / Google APIs would risk SSRF against internal services. Mirrors theirs at `seo-drift/SKILL.md:97`.
-2. **Preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (credit balance, Firecrawl availability, Google APIs). Skill-specific notes:
-   - Estimated SE Ranking cost for this skill: typical baseline costs ~10–20 SE Ranking credits depending on whether step 4 (URL-mode page snapshot) is included.
+2. **Preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (Firecrawl availability, Google APIs). Skill-specific notes:
    - Firecrawl: optional with WebFetch fallback, +1 Firecrawl credit per URL if available (URL mode). When available, the snapshot also captures `<head>` + JSON-LD content so canonical / robots / og:* / JSON-LD changes are detectable on diff. Without it the snapshot is partial. Pass `--no-firecrawl` to skip Firecrawl even when available (saves credits at the cost of diff coverage).
    - Google APIs: tier 0 unlocks CrUX p75 LCP/INP/CLS capture (origin in domain mode, URL in URL mode); tier 1 (URL mode only) additionally captures URL Inspection state (`indexStatusVerdict`, `googleCanonical`, `lastCrawlTime`) so subsequent compares can flag field-data and indexation drift. See `skills/seo-google/references/cross-skill-integration.md` § "seo-drift" for the full recipe.
 3. **Domain snapshot** (always):
-   - `DATA_getDomainOverviewWorldwide` — DA, traffic, organic + paid keyword counts.
-   - `DATA_getDomainKeywords` — top 100 organic keywords with positions.
-   - `DATA_getBacklinksSummary` — backlinks total, referring domains total.
-   - `DATA_getBacklinksRefDomains` — top 20 referring domains with authority.
+   - `dataforseo_labs_google_domain_rank_overview` — DA, traffic, organic + paid keyword counts.
+   - `dataforseo_labs_google_ranked_keywords` — top 100 organic keywords with positions.
+   - `backlinks_summary` — backlinks total, referring domains total.
+   - `backlinks_referring_domains` — top 20 referring domains with authority.
 4. **Page snapshot** (if target is a URL): `WebFetch` (always) + `mcp__firecrawl-mcp__firecrawl_scrape` (when available)
    - **WebFetch** (free): extract `<title>`, all `<h1..h6>`, lang, word count, internal-link count, image count, body markdown for prose-level diff.
    - **Firecrawl** (1 Firecrawl credit per URL) — recovers `<head>` and `<script>` content WebFetch strips:
@@ -58,7 +57,6 @@ List all stored baselines for the target with their dates and key metrics (DA, t
      - From returned `html`: every `<script type="application/ld+json">` block. Capture both detected `@type`s and a hash of the full block content (so any schema-content change is detected on diff, not just type-list changes).
    - **If Firecrawl unavailable (or `--no-firecrawl` passed):** only WebFetch fields enter the fingerprint. `BASELINE.md` notes: `Snapshot fields recovered via WebFetch only — canonical, robots, og:*, twitter:*, and JSON-LD changes will not be detected on subsequent compares. Install Firecrawl for full coverage.`
    - Compute a fingerprint hash of the captured fields.
-   - Also capture page authority: `DATA_getPageAuthority`.
 4b. **Google field-data snapshot** *(only if google-api.json is present AND `--skip-cwv` not set)*
    - Tier 0 (always when configured): `python3 scripts/pagespeed_check.py "{target}" --crux-only --json` (URL mode) or `python3 scripts/pagespeed_check.py "https://{domain}" --crux-only --json` (domain mode, origin-level CrUX). Store the resulting p75 LCP / INP / CLS / FCP / TTFB and the source label ("URL" or "origin").
    - Tier 0 (always when configured): `python3 scripts/crux_history.py "{target_or_origin}" --json` for the 25-week trend window snapshot — store as `crux_history_baseline`. Subsequent compares can detect drift against the most recent week.
@@ -173,10 +171,9 @@ Top-level: `DRIFT-REPORT.md` only. The four delta step files are inlined into na
 ## Tips
 
 - Respect rate limit: 10 req/sec. Baseline runs 4–6 sequential calls; pace easily.
-- Call `DATA_getCreditBalance` before running. Domain baseline ~10–15 SE Ranking credits; URL baseline ~15–20 SE Ranking credits + 1 Firecrawl credit; compare ~20–30 SE Ranking credits + 1 Firecrawl credit (current-state capture).
 - Snapshot storage is **local-only** in v0.4.0. If your team needs shared baselines, point everyone at the same `seo-drift-{target-slug}/` directory in a shared filesystem or commit it to a private repo. Baselines are JSON — git-friendly.
-- Baseline cadence: monthly is the natural rhythm because SE Ranking's history endpoints have monthly granularity. Weekly is too noisy for backlink data. Document recommended cadence in handoff to your team.
+- Baseline cadence: monthly is the natural rhythm because DataForSEO's history endpoints have monthly granularity. Weekly is too noisy for backlink data. Document recommended cadence in handoff to your team.
 - For deploy-time "did anything break in the last hour" use cases, the URL-mode page-fingerprint half is the workhorse — that doesn't depend on monthly data.
 - Don't auto-disavow or auto-fix anything based on drift findings. The skill diagnoses; humans decide.
-- **Authority-history all-zeros caveat:** if `DATA_getPageAuthorityHistory` (URL mode) or `DATA_getDomainAuthorityHistory` returns flat-zero values across the window, treat as "insufficient history" — don't compute a delta or surface a regression based on missing data. Cross-check the current-value endpoint (`DATA_getPageAuthority` / `DATA_getDomainOverviewWorldwide`) — if the current value is meaningful but history is flat, surface that as a data-quality flag in `DRIFT-REPORT.md` rather than fabricating a trend.
-- Cost of doing nothing: silent regressions. Cost of running monthly: ~15 credits. Run monthly.
+- **Authority-history all-zeros caveat:** if `dataforseo_labs_google_historical_rank_overview` (domain mode) returns flat-zero values across the window, treat as "insufficient history" — don't compute a delta or surface a regression based on missing data. Cross-check the current-value endpoint (`dataforseo_labs_google_domain_rank_overview`) — if the current value is meaningful but history is flat, surface that as a data-quality flag in `DRIFT-REPORT.md` rather than fabricating a trend.
+- Cost of doing nothing: silent regressions. Run monthly.

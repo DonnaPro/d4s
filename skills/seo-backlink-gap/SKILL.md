@@ -11,30 +11,30 @@ Produce an actionable link-prospecting list: domains linking to your top competi
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available (used for prospect scoring and topical relevance checks).
-- User provides: (a) target domain, (b) 3 to 5 competitor domains, and optionally (c) minimum Domain Trust (default: 25), (d) dofollow-only filter (default: true), (e) minimum intersection count (default: linked by at least 2 of the N competitors).
+- User provides: (a) target domain, (b) 3 to 5 competitor domains, and optionally (c) minimum Domain Rank (default: 25), (d) dofollow-only filter (default: true), (e) minimum intersection count (default: linked by at least 2 of the N competitors).
 
 ## Process
 
-1. **Baseline target backlinks** `DATA_getBacklinksRefDomains`, `DATA_getBacklinksSummary`
+1. **Baseline target backlinks** `backlinks_referring_domains`, `backlinks_summary`
    - Pull the target domain's existing referring domains to build an exclusion set.
    - Save count and summary metrics for the report.
 
-2. **Per-competitor referring domains** `DATA_getBacklinksRefDomains`
-   - For each competitor, pull referring domains with `dofollow_only=true` and `min_domain_trust={threshold}`.
+2. **Per-competitor referring domains** `backlinks_referring_domains`
+   - For each competitor, pull referring domains with `dofollow_only=true` and `min_domain_rank={threshold}`.
    - Collect as a dict keyed by referring domain with the list of competitors linking to it.
 
 3. **Intersection**
    - Retain referring domains that link to at least the minimum number of competitors.
    - Exclude any domain already in the target's backlink set.
 
-4. **Enrichment** `DATA_getBacklinksAuthority`, `DATA_getBacklinksAnchors`
-   - For each candidate, pull: Domain Trust, Page Trust of the linking page, linking-to-competitor anchor samples (top 3 anchors), and country if available.
+4. **Enrichment** `backlinks_bulk_ranks`, `backlinks_anchors`
+   - For each candidate, pull: Domain Rank, Page Rank of the linking page, linking-to-competitor anchor samples (top 3 anchors), and country if available.
    - Classify by link type: editorial, resource list, directory, forum/UGC.
 
 5. **Relevance scoring**
-   - Score each candidate on: (a) topical overlap (use domain homepage title/meta via WebFetch), (b) DT, (c) intersection count, (d) link-type preference.
+   - Score each candidate on: (a) topical overlap (use domain homepage title/meta via WebFetch), (b) Domain Rank, (c) intersection count, (d) link-type preference.
    - Suggest an outreach angle per row: local fit, topical fit, competitive parity, resource-list inclusion, broken link, etc.
 
 6. **Produce the prospect list** (see Output Format).
@@ -59,12 +59,12 @@ seo-backlink-gap-{target-slug}-{YYYYMMDD}/
 
 ## Filters applied
 - Dofollow only: yes
-- Min Domain Trust: {n}
+- Min Domain Rank: {n}
 - Min intersection: links to at least {n} of {total} competitors
 
 ## Top 25 prospects
 
-| # | Referring domain | DT | Links to | Sample anchor | Link type | Angle | Score |
+| # | Referring domain | DR | Links to | Sample anchor | Link type | Angle | Score |
 |---|---|---|---|---|---|---|---|
 | 1 | example.com | 68 | {3 of 5} | "best yoga studios" | Resource list | Topical fit | 92 |
 | 2 | ... | ... | ... | ... | ... | ... | ... |
@@ -88,12 +88,12 @@ seo-backlink-gap-{target-slug}-{YYYYMMDD}/
 ```
 
 `prospects.csv` columns:
-`rank,referring_domain,domain_trust,links_to_count,links_to_competitors,sample_anchor,link_type,outreach_angle,score`
+`rank,referring_domain,domain_rank,links_to_count,links_to_competitors,sample_anchor,link_type,outreach_angle,score`
 
 ## Tips
 
-- Data API rate limit: 10 requests per second. With 5 competitors, expect 5-10 seconds of sequential API time plus enrichment.
+- DataForSEO API rate limit: 10 requests per second. With 5 competitors, expect 5-10 seconds of sequential API time plus enrichment.
 - Do not include subdomains of already-linked domains in the prospect list. If news.example.com links to the target but blog.example.com links only to competitors, treat as already-linked unless the user asks otherwise.
 - The "Angle" column is the most important output for outreach. Keep it specific: "Their 'best X tools' list from 2024 is out of date and doesn't include you" beats "topical fit".
-- Exclude obvious spam/low-quality domains even if they pass DT thresholds. Use the WebFetch step to sanity-check any prospect scoring above 80.
+- Exclude obvious spam/low-quality domains even if they pass Domain Rank thresholds. Use the WebFetch step to sanity-check any prospect scoring above 80.
 - If the target already outranks all competitors for branded terms, prioritise non-branded editorial placements over parity directories.

@@ -13,7 +13,7 @@ Diagnose why a "well-optimized" page doesn't rank. Reads the actual SERP for the
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available.
 - User provides: (a) target page URL, (b) target keyword the page is meant to rank for, optionally (c) target country (default `us`).
 
@@ -21,16 +21,17 @@ Diagnose why a "well-optimized" page doesn't rank. Reads the actual SERP for the
 
 1. **Validate inputs.** Both URL and keyword are required. If keyword missing, ask the user — don't infer.
 
-2. **Pull the SERP** `DATA_getSerpResults` and `DATA_getSerpTaskAdvancedResults`
+2. **Pull the SERP** `serp_organic_live_advanced`
    - Top 10 organic results with URL, title, snippet.
    - SERP features: AI Overview presence, People Also Ask, image carousel, video carousel, shopping pack, Twitter pack, Featured Snippet, etc.
-   - **Mode selection (cost driver — read this).** SERP feature data (AIO/PAA/carousels) only comes back when the task runs with `result_type=advanced`. That is also the most expensive single call this skill makes (≈ 700 credits per keyword on heavily-trafficked terms in the 2026-04 validation run).
-     - **Default — `mode=full`:** runs `result_type=advanced`. Returns features + organic. Use when persona scoring needs PAA / AIO / pack signals (most cases).
-     - **`mode=lite` (`result_type=standard`):** organic top-10 only, no SERP features, ≈ 50–100 credits. Use when (a) the user is screening many keywords and SERP features aren't load-bearing, (b) credits are constrained, (c) the user explicitly asks for a cheap pass. The persona scoring still runs but the SERP-features row in `SXO-REPORT.md` will read `(skipped — lite mode)` and the dominant-pattern detection will rely on URL/title heuristics alone.
-     - Surface the chosen mode + estimated cost up front. If the user didn't specify and the keyword looks ad-heavy or commercial-high-volume, recommend `mode=lite` first and re-run with `mode=full` only if dominant-pattern confidence is low.
+   - **Mode selection (cost driver — read this).** SERP feature data (AIO/PAA/carousels) is available when running `serp_organic_live_advanced` — this is the standard DataForSEO SERP call and returns full SERP feature context including AI Overview snippets, PAA blocks, carousels, and shopping packs in the `items` array.
+     - **Default — `mode=full`:** runs `serp_organic_live_advanced` with all result types. Returns features + organic. Use when persona scoring needs PAA / AIO / pack signals (most cases).
+     - **`mode=lite`:** request only organic items, no extra parsing of feature items. Use when (a) the user is screening many keywords and SERP features aren't load-bearing, (b) costs are constrained, (c) the user explicitly asks for a cheap pass. The persona scoring still runs but the SERP-features row in `SXO-REPORT.md` will read `(skipped — lite mode)` and the dominant-pattern detection will rely on URL/title heuristics alone.
+     - Surface the chosen mode up front. If the user didn't specify and the keyword looks ad-heavy or commercial-high-volume, recommend `mode=lite` first and re-run with `mode=full` only if dominant-pattern confidence is low.
 
-3. **Pull AIO context** `DATA_getAiOverview`
-   - If AIO is present for the keyword, capture the answer text and citation list.
+3. **Extract AIO context from SERP results**
+   - Check `serp_organic_live_advanced` result items for `type: "ai_overview"` entries.
+   - If AIO is present, capture the answer text and citation list.
    - Note which top-10 organic results are also cited in the AIO.
 
 4. **Fetch user's page + top 3 winners** `WebFetch` (always) + `mcp__firecrawl-mcp__firecrawl_scrape` (when available)
@@ -136,9 +137,8 @@ seo-sxo-{target-slug}-{YYYYMMDD}/
 
 ## Tips
 
-- Respect rate limit: 10 req/sec. The SERP calls in step 2/3 are fast; WebFetch calls in step 4 dominate latency, not API.
-- **Cost is mode-dependent.** `mode=full` is ~750–900 SE Ranking credits per run (the SERP-advanced call dominates). `mode=lite` is ~80–150 SE Ranking credits. Always call `DATA_getCreditBalance` before running and surface the estimate against remaining balance. Step 4 adds 4 Firecrawl credits when Firecrawl is available, +4 more if `--screenshots` is passed. Pass `--no-firecrawl` to skip both.
-- **`result_type=advanced` is the only way to get AIO / PAA / pack data.** The standard SERP endpoint returns organic-only. Don't try to reconstruct SERP features from organic results — that's the cost the user is paying for.
+- Respect DataForSEO API rate limits. The SERP call in step 2 is the primary API call; WebFetch calls in step 4 dominate latency.
+- **`serp_organic_live_advanced` is the only call needed for SERP data** — it returns organic results plus all SERP feature items (AIO, PAA, carousels, shopping pack) in a single response. Parse `items` for `type` to extract features.
 - Page-type classification is a heuristic — `references/page-type-patterns.md` documents the signals so users can override. If the heuristic gets a result wrong, edit that file with the correction.
 - The 4 personas are opinionated. They come from the framework's original source — don't invent more without good reason.
 - The SXO score is directional. An 85/100 doesn't guarantee ranking; a 35/100 strongly suggests the page won't break through. Treat as a diagnostic, not a forecast.

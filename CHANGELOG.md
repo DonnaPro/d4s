@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. Format based on Keep a Changelog.
 
+## [3.0.0] — 2026-06-08
+
+Migration from SE Ranking MCP to DataForSEO MCP for [donnapro.com](https://donnapro.com).
+
+### Changed (breaking)
+- **MCP backend replaced.** All skills previously powered by the SE Ranking remote MCP (`https://api.seranking.com/mcp`) are now powered by the DataForSEO MCP server (`npx -y dataforseo-mcp-server`). Install the new server with `claude mcp add --transport stdio --env DATAFORSEO_USERNAME=... --env DATAFORSEO_PASSWORD=... dataforseo -- npx -y dataforseo-mcp-server`.
+- **Repository moved** from `seranking/seo-skills` to `DonnaPro/d4s`. Update any bookmarks, clone URLs, or marketplace install commands accordingly.
+- **README** rewritten to reflect DataForSEO setup instructions, new repo URL, and DonnaPro authorship.
+- **`seo-firecrawl`** — updated two internal references from "SE Ranking skills" / "SE Ranking data" to "DataForSEO skills" / "DataForSEO data".
+- **`seo-api`** skill now documents the DataForSEO API surface instead of SE Ranking's.
+
+### Migration
+Replace any existing `se-ranking` MCP registration with the DataForSEO equivalent:
+```bash
+claude mcp remove se-ranking
+claude mcp add --transport stdio --env DATAFORSEO_USERNAME=your@email.com --env DATAFORSEO_PASSWORD=your_password dataforseo -- npx -y dataforseo-mcp-server
+```
+Skills that referenced `DATA_*` tool names will resolve to their DataForSEO equivalents via the new MCP server. All skill logic, output formats, and example runs are otherwise unchanged.
+
 ## [2.10.3] — 2026-06-03
 
 Patch release. Adds release automation and ships the first signed (Verified) release.

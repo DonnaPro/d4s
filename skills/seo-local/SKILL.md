@@ -9,19 +9,18 @@ description: Local SEO audit for brick-and-mortar, service-area, and multi-locat
 
 Score a local business's website against the signals that drive local-pack and "near me" visibility — GBP integration on the page, NAP consistency, on-page local intent, citation footprint on Tier-1 directories, review-platform presence, and local-pack rank for the business's primary keywords. Deliverable is one prioritised fix list, anchored in observable signals.
 
-> Adapted from [`AgriciDaniel/claude-seo`](https://github.com/AgriciDaniel/claude-seo)'s `seo-local` skill (MIT). Concept and dimension structure mirror the upstream; backend rewired to SE Ranking + Firecrawl + Google APIs. DataForSEO Maps geo-grid and Business Listings checks from the upstream are dropped (no equivalent backend) — see "Limitations" in the deliverable.
+> Adapted from [`AgriciDaniel/claude-seo`](https://github.com/AgriciDaniel/claude-seo)'s `seo-local` skill (MIT). Concept and dimension structure mirror the upstream; backend rewired to DataForSEO + Firecrawl + Google APIs.
 
 ## Prerequisites
 
-- SE Ranking MCP server connected (used for local-pack rank, on-page audit data, domain context).
+- DataForSEO MCP server connected (used for local-pack rank, business listings data, domain context).
 - Claude's `WebFetch` tool available (used for sense-check fallback when Firecrawl is unavailable).
 - User provides: (a) a target domain or homepage URL, (b) at least one primary local keyword (e.g. `"dentist Brooklyn"`, `"plumber near me"`), (c) target country and ideally city/region for local-pack scoping. Optional: GBP listing URL, Yelp/Trustpilot URLs for review scraping.
 
 ## Process
 
-1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (credit balance, Firecrawl availability, Google APIs). Skill-specific notes:
+1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (Firecrawl availability, Google APIs). Skill-specific notes:
    - Normalise the target (strip protocol from domain; confirm homepage is fetchable). Confirm at least one local keyword was provided — if none, infer from `<title>` + `<h1>` of the homepage; if still ambiguous, ask the user before continuing.
-   - Estimated SE Ranking cost for this skill: ~15–25 credits (1 audit re-check + 3–5 SERP queries + 1 domain overview).
    - Firecrawl: optional with WebFetch fallback, ~6–9 Firecrawl credits if available (hard cap 12). When available, steps 4 (GBP-on-page audit), 5 (NAP extraction), and 7 (review scraping) run on the homepage + 5 sample pages + provided review URLs. Without Firecrawl those steps degrade to WebFetch-only — schema/JSON-LD detection and `tel:` / address element extraction become best-effort prose inspection. Pass `--no-firecrawl` to force WebFetch-only.
    - Google APIs: tier 1 (GSC) unlocks step 8b (GSC local query performance) after the local-pack rank step; tier 2 (GA4) additionally unlocks step 8c (GA4 organic-by-landing-page enrichment). See `skills/seo-google/references/cross-skill-integration.md` for the full enrichment contract.
 
@@ -57,13 +56,13 @@ Score a local business's website against the signals that drive local-pack and "
    - **Brick-and-mortar only:** if a Maps iframe is present, attempt to read the embedded address from the iframe URL (the place ID and address are URL-encoded). Compare to page/schema NAP. SAB skips this.
    - If `nap-inconsistencies.csv` is empty after the scan, write `nap-inconsistencies.csv` as a one-line file with header only and note "NAP consistent across {n} pages and schema" in `LOCAL-SEO-REPORT.md`.
 
-6. **Local-pack rank tracking** `DATA_getSerpResults` with country/region filters
+6. **Local-pack rank tracking** `serp_organic_live_advanced` with country/region filters
    - For each user-provided local keyword (or the 1–3 inferred from homepage):
-     - Call `DATA_getSerpResults` with the user's country and the most specific region/city the API supports (use `DATA_getSerpLocations` first to confirm a valid location code if the user supplied a city).
+     - Call `serp_organic_live_advanced` with the user's country and the most specific region/city the API supports (use `serp_locations` first to confirm a valid location code if the user supplied a city).
      - Capture: top 10 organic, local-pack presence (yes/no), the 3 businesses in the local pack if shown (name, rating, review count), AIO presence.
      - Cross-check: is the target domain in the top 10 organic? Is the target business name in the local pack?
    - **Save the parsed result per keyword to `local-keywords.csv`** (columns: `keyword,country,location,local_pack_present,target_in_pack,target_pack_position,target_organic_position,top_pack_competitor_1,top_pack_competitor_2,top_pack_competitor_3`).
-   - Note the local-pack-ads caveat: the SE Ranking SERP returns the AI/ads-modified pack as Google serves it. If the local pack shows ads, record that — local-pack ad density jumped from 1% to 22% of mobile US local searches in 2025–2026 per Sterling Sky.
+   - Note the local-pack-ads caveat: the DataForSEO SERP response returns the AI/ads-modified pack as Google serves it. If the local pack shows ads, record that — local-pack ad density jumped from 1% to 22% of mobile US local searches in 2025–2026 per Sterling Sky.
 
 7. **Reviews scraping** `mcp__firecrawl-mcp__firecrawl_scrape` on user-provided review URLs
    - **Inputs (user-provided, optional).** GBP listing URL (`https://www.google.com/maps/place/...`), Yelp business URL, Trustpilot business URL, BBB profile URL.
@@ -75,7 +74,7 @@ Score a local business's website against the signals that drive local-pack and "
      - Owner-response rate on Google: <50% on recent 10 = engagement gap.
    - **If user provides no review URLs:** skip step 7 entirely. Note in `LOCAL-SEO-REPORT.md`: "Review platforms: not provided. To audit review health, re-run with `--reviews 'gbp_url,yelp_url,trustpilot_url'`." Don't try to discover them — review-URL discovery is a different problem (and the Maps API path is the one we don't have).
 
-8. **On-page local-SEO audit** `DATA_getAuditReport` (existing audit) + `DATA_getIssuesByUrl` on the homepage
+8. **On-page local-SEO audit** (reuse existing `seo-technical-audit` output if available)
    - **Reuse the existing site audit if one is recent (<30 days, see `seo-technical-audit`).** Don't create a new audit just for local — the audit data already covers title-tag issues, missing schema, mobile usability, etc.
    - From the audit, surface the issues that bear on local SEO specifically:
      - Title / H1 missing primary city or service term.
@@ -98,13 +97,20 @@ Score a local business's website against the signals that drive local-pack and "
    - For multi-location sites, surface per-location-page sessions. If one location page captures 80%+ of organic traffic while peer location pages capture <5%, that's location-page quality variance worth flagging (probable doorway-page or thin-content risk on the underperformers).
    - Single-location sites: just record the homepage's organic sessions as one row in the snapshot.
 
-9. **Citation-presence sample (best-effort)** `WebSearch` (no API key cost)
+9. **Business listings check** `business_data_business_listings_search`
+   - Search for the business name in the target city/region to retrieve the Google Business Profile listing.
+   - Capture: business name, address, phone, categories, rating, review count, hours, and whether the listing is claimed.
+   - Cross-reference with the NAP extracted in step 5 — any divergence is a critical NAP inconsistency.
+   - Record in `LOCAL-SEO-REPORT.md` "GBP listing data" section.
+
+9b. **Citation-presence sample (best-effort)** `WebSearch` (no API key cost)
    - For each Tier-1 directory in the vertical's list (load `references/local-citation-sources.md`), check whether the business has a listing using `site:{directory} "{business_name}"` queries via WebSearch.
    - **Cap at 8 directories** (Google, Yelp, Facebook, BBB, Apple Maps, Bing Places, plus 2 vertical-specific). Anything beyond is diminishing returns and the user can run their own audit.
    - Record in `LOCAL-SEO-REPORT.md` "Citations" section: detected / not detected per directory, plus the URL of the listing if found.
    - **Caveat to surface:** WebSearch hits are a *sample*, not a comprehensive audit. A "not detected" doesn't prove absence — it proves the listing didn't surface for that specific query. Recommend a paid citation-audit tool (Whitespark, BrightLocal, Yext) for definitive coverage.
 
 10. **Synthesise** `LOCAL-SEO-REPORT.md`
+
    - Score the 5 local dimensions on the rubric below, list top fixes (Critical / High / Medium / Low), record limitations.
    - Apply the verdict heuristic — see Tips.
 
@@ -120,7 +126,7 @@ seo-local-{domain-slug}-{YYYYMMDD}/
 └── evidence/
     ├── 01-homepage-snapshot.md     (Firecrawl raw HTML extracts: NAP, schema, GBP signals)
     ├── 02-nap-page-samples.md      (per-page NAP extracts across 5 sample URLs)
-    ├── 03-serp-context.md          (raw DATA_getSerpResults per keyword)
+    ├── 03-serp-context.md          (raw serp_organic_live_advanced per keyword)
     ├── 04-reviews.md               (per-platform review-page snapshots, only if user provided URLs)
     └── 05-citation-sample.md       (raw WebSearch results per directory check)
 ```
@@ -198,11 +204,10 @@ seo-local-{domain-slug}-{YYYYMMDD}/
 
 ## Limitations
 This skill could NOT assess:
-- **Geo-grid local-pack rank by lat/long.** Requires a Maps API (e.g. DataForSEO Maps geo-grid endpoint) we don't have. Workaround: pay for Local Falcon, GMB Crush, or BrightLocal Local Search Grid.
+- **Geo-grid local-pack rank by lat/long.** Requires a Maps API (e.g. DataForSEO Maps geo-grid endpoint) not covered in this skill's scope. Workaround: pay for Local Falcon, GMB Crush, or BrightLocal Local Search Grid.
 - **Comprehensive citation audit.** WebSearch sampling covers ~8 directories; full audits cover 50+. Use Whitespark, BrightLocal, or Yext.
 - **GBP Insights data.** Requires GBP API access scoped to the listing owner. Ask the listing owner to export Insights and share.
-- **Real-time local-pack rank tracking over time.** This skill is a snapshot. Use SE Ranking's project-level rank tracker (`PROJECT_runPositionCheck`) or pair with `seo-drift` for diff snapshots.
-- **DataForSEO Business Listings.** Not in our backend; if the user needs it, they'd need to subscribe to DataForSEO directly.
+- **Real-time local-pack rank tracking over time.** This skill is a snapshot. Pair with `seo-drift` for diff snapshots.
 ```
 
 `local-keywords.csv` columns: `keyword,country,location,local_pack_present,target_in_pack,target_pack_position,target_organic_position,top_pack_competitor_1,top_pack_competitor_2,top_pack_competitor_3,aio_present`
@@ -211,8 +216,7 @@ This skill could NOT assess:
 
 ## Tips
 
-- Respect SE Ranking Data API rate limit: 10 requests per second. Pace the per-keyword `DATA_getSerpResults` calls sequentially.
-- Call `DATA_getCreditBalance` before running. ~15–25 SE Ranking credits typical, plus 6–12 Firecrawl credits when Firecrawl is installed.
+- Respect DataForSEO API rate limit. Pace the per-keyword `serp_organic_live_advanced` calls sequentially.
 - Verdict heuristic:
   - **STRONG**: composite ≥7/10, NAP consistent across all sampled pages, target in local pack on majority of keywords, valid LocalBusiness schema with industry-correct subtype, ≥10 Google reviews with healthy velocity.
   - **NEEDS WORK**: composite 4–6.9/10, OR 1+ NAP discrepancy, OR target out of local pack on majority of keywords. The "Top fixes" section is the deliverable here — most local-SEO audits land in this bucket.

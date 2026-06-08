@@ -7,45 +7,52 @@ description: Focused one-shot technical SEO audit for a domain. Crawlability, in
 
 # Technical Audit
 
-A one-shot technical SEO audit for a domain. Pulls SE Ranking's audit data, categorizes findings by area (crawlability, indexability, security, mobile, structured data, etc.), severity-sorts within each, and produces a top-10 fix list ranked by impact × effort.
+A one-shot technical SEO audit for a domain. Discovers URLs via Firecrawl, analyzes each page with DataForSEO's `on_page_instant_pages`, categorizes findings by area (crawlability, indexability, security, mobile, structured data, etc.), severity-sorts within each, and produces a top-10 fix list ranked by impact × effort.
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
+- Firecrawl MCP server connected — **required** for URL discovery. Without Firecrawl, the skill cannot enumerate site pages and cannot run. (Pass `--urls "url1,url2,..."` to skip Firecrawl and supply the page list manually.)
 - Claude's `WebFetch` tool available (used for sense-checking robots.txt and sitemap presence).
-- User provides: a target domain (e.g. `example.com`). Optional: target country (default `us`), audit-page-limit override (default: rely on the existing audit's limit).
+- User provides: a target domain (e.g. `example.com`). Optional: target country (default `us`), page-sample-limit override (default: 50).
 
 ## Process
 
-1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (credit balance, Firecrawl availability, Google APIs). Skill-specific notes:
+1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (Firecrawl availability, Google APIs).
    - Normalise domain (strip protocol, trailing slash) before continuing.
-   - Estimated SE Ranking cost for this skill: a re-check of an existing audit is cheap; creating a new audit is significantly more expensive and varies by page count. Surface the cost before deciding.
-   - Firecrawl: optional. When available, step 8 (Modern signals checklist) runs on 5 sample URLs and `/robots.txt`, ~6 Firecrawl credits (hard cap). Without it, step 8 is skipped — JS-render canonical/noindex divergence, X-Robots-Tag headers, and AI-crawler robots-rule analysis are unavailable but the full technical-audit deliverable still ships. Pass `--no-firecrawl` to skip step 8 even when Firecrawl is available (saves credits).
+   - Firecrawl is **required** for site-wide URL discovery. If unavailable and no `--urls` list was supplied, halt and ask the user to provide a URL list or connect Firecrawl.
    - Google APIs: tier 0 unlocks step 8b (CrUX field data); tier 1 also unlocks step 8c (per-URL GSC Inspection on top 5 traffic pages). See `skills/seo-google/references/cross-skill-integration.md` § "seo-technical-audit" for the full recipe and per-tier branches.
+   - **Scale note:** `on_page_instant_pages` is a per-URL call, not a batch crawl. Analysis is capped at **50 URLs** by default (adjust with `--limit N`). For sites with more than 50 pages, the sample is drawn from the highest-traffic pages returned by `dataforseo_labs_google_relevant_pages`, falling back to the first N URLs from Firecrawl discovery if traffic data is unavailable.
 
-2. **Find or create the audit** `DATA_listAudits`
-   - List audits for the domain.
-   - If a recent audit exists (<30 days old), use it.
-   - If older than 30 days, run `DATA_recheckAudit` to refresh.
-   - If none exists, ask the user before creating a new one with `DATA_createStandardAudit` (it consumes credits).
-   - Wait for `DATA_getAuditStatus` to report `done` before pulling the report.
+2. **Discover URLs** `mcp__firecrawl-mcp__firecrawl_map`
+   - Call `firecrawl_map` on `https://{domain}` to enumerate site pages.
+   - Request up to 200 URLs (or the user-supplied limit × 4, whichever is larger) so there is a pool to rank by traffic.
+   - If `--urls` was provided, skip this step and use the supplied list.
 
-3. **Pull the audit report** `DATA_getAuditReport`
-   - Top-line metrics: pages crawled, health score, total issues by severity.
-   - Issues grouped by category (crawlability, indexability, mobile, security, structured data, etc.).
+3. **Rank URLs by traffic** `mcp__dataforseo__dataforseo_labs_google_relevant_pages`
+   - Call `dataforseo_labs_google_relevant_pages` for the domain to get estimated organic traffic per page.
+   - Sort the discovered URLs by traffic descending and take the top N (default 50) as the analysis sample.
+   - If `dataforseo_labs_google_relevant_pages` returns no data (new or low-traffic site), use the first N URLs from the Firecrawl map instead.
 
-4. **Pull per-issue page lists** `DATA_getAuditPagesByIssue`
-   - For each significant issue (severity ≥ medium, count ≥ 5), pull the affected URLs.
-   - This produces the actionable fix list.
+4. **Domain overview** `mcp__dataforseo__dataforseo_labs_google_domain_rank_overview`
+   - Call `dataforseo_labs_google_domain_rank_overview` for the domain to obtain domain rank, estimated organic traffic, referring domains, and backlink counts.
+   - These top-line metrics populate the audit summary header.
 
-5. **Cross-reference key URLs** `DATA_getIssuesByUrl`
-   - For the top 5 pages by traffic (from `DATA_getDomainKeywords`'s page aggregation, or homepage + key landing pages if no keyword data), pull all issues for those specific URLs.
-   - This catches cases where one important page concentrates many issues.
+5. **Analyze each URL** `mcp__dataforseo__on_page_instant_pages`
+   - For each URL in the sample (up to 50), call `on_page_instant_pages`.
+   - Capture from each response: HTTP status, canonical tag, meta robots, title tag (presence, length, duplication), meta description (presence, length, duplication), H1 (presence, count), H2–H6 structure, Open Graph tags, hreflang tags, page size, load time estimate, broken internal links, redirect chains, duplicate content signals, schema markup presence, image alt texts, mobile viewport tag.
+   - Collect all per-URL findings into a unified issues list.
 
-6. **Sense-check** `WebFetch`
+6. **Lighthouse scores** `mcp__dataforseo__on_page_lighthouse` *(optional add-on)*
+   - Run `on_page_lighthouse` on the top 5 traffic pages (or homepage + up to 4 key landing pages if traffic data is unavailable).
+   - Capture Performance, Accessibility, Best Practices, and SEO Lighthouse scores plus Core Web Vitals lab estimates (LCP, TBT, CLS).
+   - These supplement the field data from CrUX (step 8b) — lab data vs real-user data.
+   - Skip this step if the user passes `--no-lighthouse` or if the page count from step 5 is zero.
+
+7. **Sense-check** `WebFetch`
    - Fetch `/robots.txt` and `/sitemap.xml` directly.
-   - Confirm the audit's findings match reality on these critical files (audits sometimes lag behind same-day deploys).
-   - **Extended security headers.** WebFetch the homepage and 3 sample URLs (top-traffic landing pages from step 5, fall back to homepage + key landing pages if no keyword data); read response headers and flag any of:
+   - Confirm the per-URL findings match reality on these critical files (per-URL analysis sometimes lags same-day deploys).
+   - **Extended security headers.** WebFetch the homepage and 3 sample URLs (top-traffic landing pages from step 3, fall back to homepage + key pages); read response headers and flag any of:
      - `csp_missing` — `Content-Security-Policy` absent.
      - `xframe_missing` — `X-Frame-Options` absent (informational; CSP `frame-ancestors` supersedes).
      - `xcontent_missing` — `X-Content-Type-Options` not set to `nosniff`.
@@ -53,55 +60,55 @@ A one-shot technical SEO audit for a domain. Pulls SE Ranking's audit data, cate
      - `hsts_no_preload` — `Strict-Transport-Security` present but `preload` directive missing AND domain not on the Chromium HSTS preload list.
    - Map findings via `references/severity-mapping.md` § Security and surface in `evidence/02-issues-by-category/security.md` (and inline into TECH-AUDIT.md's "By category → Security" section).
 
-7. **Categorize and prioritize** using `references/severity-mapping.md`
-   - Map each issue code to severity, fix, and effort estimate.
-   - Score each finding: severity × affected-page-count / effort.
-   - Build the top-10 fix list.
-
 8. **Modern signals checklist** `mcp__firecrawl-mcp__firecrawl_scrape`
-   - SE Ranking's audit crawler doesn't execute JS and doesn't expose response headers per page. This step surfaces what's invisible to it.
-   - **If Firecrawl available** (~6 Firecrawl credits, hard cap): pick 5 sample URLs from the audit — bias toward high-traffic landing pages and pages already flagged with noindex / canonical issues. For each:
-     - **JS-rendered canonical vs initial-HTML canonical (`js_canonical_mismatch`).** Compare `metadata.canonical` (after JS render) against the canonical the audit recorded. Flag any divergence — per Google's Dec-2025 JavaScript SEO guidance, when a canonical in raw HTML differs from one injected by JS, Google MAY use either one, making canonical decisions non-deterministic. JS-injected canonical changes silently break indexing on JS-heavy sites.
-     - **JS-rendered noindex.** Check `metadata.robots` for `noindex` after render. Catches client-side-only `noindex` injection that the audit can't see.
+   - DataForSEO's `on_page_instant_pages` does not execute JS and does not expose per-page response headers. This step surfaces what is invisible to it.
+   - Pick 5 sample URLs from the analysis set — bias toward high-traffic landing pages and pages already flagged with noindex or canonical issues. For each:
+     - **JS-rendered canonical vs initial-HTML canonical (`js_canonical_mismatch`).** Compare `metadata.canonical` (after JS render) against the canonical recorded in step 5. Flag any divergence — per Google's Dec-2025 JavaScript SEO guidance, when a canonical in raw HTML differs from one injected by JS, Google MAY use either, making canonical decisions non-deterministic.
+     - **JS-rendered noindex.** Check `metadata.robots` for `noindex` after render. Catches client-side-only `noindex` injection that `on_page_instant_pages` cannot see.
      - **X-Robots-Tag header.** Read response headers from `metadata`. Flag any `noindex` / `nofollow` / `none` directives at the HTTP layer.
-     - **Dec-2025 JS-SEO risk detection** (Google's December 2025 JavaScript SEO guidance — four risks the static crawler cannot detect):
-       - **Risk 1 — Rendering-budget cuts (`js_render_budget`).** Compare initial-HTML body size to rendered-HTML body size. Flag pages where rendered HTML is <50% of initial HTML size after JS execution — indicates Google may exhaust its render budget before the page's actual content loads.
-       - **Risk 2 — Hydration mismatch.** Already detected above via `js_canonical_mismatch`; rationale: per the Dec-2025 guidance Google may pick *either* canonical, so any drift is a real-world ranking risk, not just a tidiness issue.
-       - **Risk 3 — CSR pitfalls (`js_csr_meta_drift`).** Diff initial-HTML `<title>`, `<h1>`, and `<meta name="description">` against the same fields in the JS-rendered DOM. Flag any divergence — Google does not reliably index content that only appears post-render, so the empty/wrong initial values may be what gets indexed.
-       - **Risk 4 — Soft-404 from JS errors (`js_soft_404`).** Flag rendered pages where body text content is <500 chars but the HTTP response status is 200. This pattern indicates a JS render failure that Google treats as a soft-404 — the page returns 200 (so it's "live") but contains no real content (so it's "empty").
+     - **Dec-2025 JS-SEO risk detection:**
+       - **Risk 1 — Rendering-budget cuts (`js_render_budget`).** Compare initial-HTML body size to rendered-HTML body size. Flag pages where rendered HTML is <50% of initial HTML size after JS execution.
+       - **Risk 2 — Hydration mismatch.** Covered above via `js_canonical_mismatch`; any drift is a real-world ranking risk.
+       - **Risk 3 — CSR pitfalls (`js_csr_meta_drift`).** Diff initial-HTML `<title>`, `<h1>`, and `<meta name="description">` against the same fields in the JS-rendered DOM. Flag any divergence.
+       - **Risk 4 — Soft-404 from JS errors (`js_soft_404`).** Flag rendered pages where body text content is <500 chars but the HTTP response status is 200.
      - Then make one additional call: `firecrawl_scrape` on `/robots.txt` (1 credit). Parse for AI-crawler User-Agent rules — `GPTBot`, `ClaudeBot`, `PerplexityBot`, `Google-Extended`, `ChatGPT-User`, `Bytespider`, `CCBot`. Surface allow/disallow scope per agent.
-   - **If Firecrawl unavailable:** skip this step. Note in `TECH-AUDIT.md`: `Modern signals (JS canonical/noindex divergence, X-Robots-Tag, AI-crawler robots.txt rules, Dec-2025 JS-SEO risks): skipped — Firecrawl not installed.`
 
 8b. **CWV field data via CrUX** *(only if google-api.json is present, tier ≥ 0)*
-   - SE Ranking's audit reports lab-only CWV (Lighthouse-flavoured estimates). CrUX returns actual Chrome user p75 metrics — the data Google ranks against.
+   - `on_page_lighthouse` (step 6) provides lab-only estimates. CrUX returns actual Chrome user p75 metrics — the data Google ranks against.
    - Run `python3 scripts/pagespeed_check.py "https://{domain}" --crux-only --json` for current p75 LCP / INP / CLS / FCP / TTFB.
    - Run `python3 scripts/crux_history.py "https://{domain}" --origin --json` for the 25-week trend per metric (improving / stable / degrading).
    - If CrUX has no field data ("insufficient data"), surface that and continue — low-traffic origins are common.
    - Surface in `TECH-AUDIT.md` as a new section "## Core Web Vitals (field data)" with current p75 + trend per metric, source labelled "CrUX 28-day origin".
 
 8c. **Per-URL indexation status via GSC URL Inspection** *(only if google-api.json is present, tier ≥ 1)*
-   - For each of the top 5 traffic pages identified in step 5 (or homepage + key landing pages if no keyword data), run:
+   - For each of the top 5 traffic pages identified in step 3 (or homepage + key landing pages if no traffic data), run:
      `python3 scripts/gsc_inspect.py "{url}" --site-url "{config.default_property}" --json`
    - Capture `indexStatusVerdict`, `coverageState`, `googleCanonical` (vs `userCanonical`), and `lastCrawlTime` per URL.
-   - **Cross-check against the audit's noindex / canonical findings.** If GSC reports `INDEXED` but the audit flagged `noindex`, the audit is stale or the directive was added recently — flag for re-audit. If GSC reports `EXCLUDED` for a page the audit treats as healthy, that's a hidden indexability issue the SE Ranking audit can't see.
-   - **Critical-issue elevation:** any `userCanonical ≠ googleCanonical` divergence on a top-traffic page is added to the Top-10 fix list at Critical severity regardless of `severity-mapping.md`'s default — Google having decided on a different canonical is a real-world ranking problem.
-   - If the property isn't verified in GSC for this account, surface "GSC: {domain} not verified — add it in Search Console" and skip 8c only.
+   - **Cross-check against per-URL findings.** If GSC reports `INDEXED` but `on_page_instant_pages` flagged `noindex`, the directive may have been added recently — flag for re-check. If GSC reports `EXCLUDED` for a page that appears healthy, that is a hidden indexability issue.
+   - **Critical-issue elevation:** any `userCanonical ≠ googleCanonical` divergence on a top-traffic page is added to the Top-10 fix list at Critical severity regardless of `severity-mapping.md`'s default.
+   - If the property is not verified in GSC for this account, surface "GSC: {domain} not verified — add it in Search Console" and skip 8c only.
    - Surface in `TECH-AUDIT.md` as a new section "## Indexation reality check (GSC URL Inspection)" with one row per top-5-traffic URL: status / canonical-divergence / last-crawled.
    - See `skills/seo-google/references/cross-skill-integration.md` § "seo-technical-audit" for the full recipe and failure modes.
 
 8d. **IndexNow detection** `WebFetch`
    - Detection logic — IndexNow advertises its key one of three ways. Check in this order:
-     1. **robots.txt hint:** look in the already-fetched `/robots.txt` (step 6) for an `IndexNow:` directive or a comment referencing the key file path.
-     2. **Response header hint:** scan response headers from the homepage WebFetch (step 6) for `x-indexnow-key`, `x-indexnow`, or `x-indexnow-key-location`.
-     3. **Conventional path probe:** WebFetch `/<key>.txt` if a key was hinted in (1) or (2). If neither hint exists, additionally probe a small set of conventional locations only when the user's domain has signalled IndexNow elsewhere (e.g. Bing Webmaster integration disclosed in robots.txt).
+     1. **robots.txt hint:** look in the already-fetched `/robots.txt` (step 7) for an `IndexNow:` directive or a comment referencing the key file path.
+     2. **Response header hint:** scan response headers from the homepage WebFetch (step 7) for `x-indexnow-key`, `x-indexnow`, or `x-indexnow-key-location`.
+     3. **Conventional path probe:** WebFetch `/<key>.txt` if a key was hinted in (1) or (2).
    - Map findings via `references/severity-mapping.md` § IndexNow:
      - No key advertised anywhere → `indexnow_no_key` (Low; informational — Bing-only benefit).
      - Key advertised but `/<key>.txt` content ≠ advertised key → `indexnow_key_mismatch` (Medium).
      - Key file present and matches but no recent submissions detected → `indexnow_not_submitted_recently` (Low; informational).
-   - Detect last-key-rotation date when possible: WebFetch the key file and read the `Last-Modified` response header (or fall back to the file's `Date` header).
-   - Surface in `evidence/02-issues-by-category/security.md` (or a new `evidence/02-issues-by-category/indexnow.md` if findings are non-trivial; either way, fold into TECH-AUDIT.md's "By category" section) and add a row to the `TECH-AUDIT.md` Modern signals section showing IndexNow status: configured (Y/N) and last-key-rotation date if detectable.
+   - Detect last-key-rotation date when possible: WebFetch the key file and read the `Last-Modified` response header.
+   - Surface in `evidence/02-issues-by-category/security.md` (or a new `evidence/02-issues-by-category/indexnow.md` if findings are non-trivial) and add a row to the `TECH-AUDIT.md` Modern signals section.
 
-9. **Synthesise** `TECH-AUDIT.md`
+9. **Categorize and prioritize** using `references/severity-mapping.md`
+   - Map each issue code to severity, fix, and effort estimate.
+   - Aggregate per-URL findings: for each issue type, count the number of affected pages.
+   - Score each finding: severity × affected-page-count / effort.
+   - Build the top-10 fix list.
+
+10. **Synthesise** `TECH-AUDIT.md`
 
 ## Output format
 
@@ -131,7 +138,7 @@ Top-level: `TECH-AUDIT.md` + `issues.csv` + `03-key-pages-issues.md`. The audit 
 ```markdown
 # Technical Audit: {domain}
 
-> Audit date {YYYY-MM-DD} · Pages crawled: {n} · Health score: {n}/100
+> Audit date {YYYY-MM-DD} · Pages analyzed: {n} of {total-discovered} discovered · Domain rank: {n} · Est. organic traffic: {n}/mo
 
 ## Summary
 
@@ -141,6 +148,8 @@ Top-level: `TECH-AUDIT.md` + `issues.csv` + `03-key-pages-issues.md`. The audit 
 | High | {n} |
 | Medium | {n} |
 | Low | {n} |
+
+> Note: Analysis covers a sample of {n} pages (top by organic traffic). For sites with >50 pages, results represent the highest-traffic section of the site. Full-site analysis requires increasing `--limit`.
 
 ## Top 10 fixes (impact × effort)
 
@@ -172,14 +181,13 @@ Top-level: `TECH-AUDIT.md` + `issues.csv` + `03-key-pages-issues.md`. The audit 
 
 ### Modern signals ({n} findings — Firecrawl)
 - {URL} — initial-HTML canonical `{X}` differs from JS-rendered canonical `{Y}` (`js_canonical_mismatch`)
-- {URL} — JS-rendered `noindex` not visible to static crawler
+- {URL} — JS-rendered `noindex` not visible to static analysis
 - {URL} — `X-Robots-Tag: noindex` at HTTP layer
 - {URL} — rendered HTML <50% of initial HTML size (`js_render_budget` — Google may stop rendering before content loads)
 - {URL} — title / H1 / meta description differ between initial HTML and post-render DOM (`js_csr_meta_drift`)
 - {URL} — rendered body <500 chars but HTTP 200 (`js_soft_404` — likely JS render failure, treated as soft-404 by Google)
 - robots.txt — `GPTBot`: {allow / disallow `/path`}, `ClaudeBot`: {…}, `Google-Extended`: {…}, ...
 - IndexNow — configured: {Y/N} · key-file: `/<key>.txt` {found / missing / mismatch} · last-key-rotation: {YYYY-MM-DD or "unknown"}
-- (Or: `Modern signals: skipped — Firecrawl not installed`)
 
 ### Security headers (extended — WebFetch)
 
@@ -190,6 +198,16 @@ Top-level: `TECH-AUDIT.md` + `issues.csv` + `03-key-pages-issues.md`. The audit 
 | X-Content-Type-Options | {`nosniff`/absent/other} | … | … | … | `xcontent_missing` if not `nosniff` |
 | Referrer-Policy | {present/absent} | … | … | … | `referrer_policy_missing` if absent |
 | HSTS preload | {preload directive Y/N · on Chromium preload list Y/N} | … | … | … | `hsts_no_preload` if not on list |
+
+## Lighthouse scores (DataForSEO — lab data, top 5 pages)
+
+| URL | Performance | Accessibility | Best Practices | SEO | LCP | CLS |
+|---|---|---|---|---|---|---|
+| {url 1} | {0–100} | {0–100} | {0–100} | {0–100} | {n} ms | {n} |
+| ... |
+
+Source: DataForSEO `on_page_lighthouse`. Lab data only — see CrUX section below for real-user field data.
+(Or: `Lighthouse scores: skipped — pass --no-lighthouse to suppress, or this note means no pages were analyzed.`)
 
 ## Core Web Vitals (field data — CrUX)
 
@@ -230,11 +248,11 @@ Re-run this skill monthly to catch regressions, or wire `seo-drift` to baseline 
 
 ## Tips
 
-- Respect rate limit: 10 req/sec.
-- Reuse existing audits when possible — creating a new audit is the most expensive operation.
-- A fresh audit on a 1k-page site can take 10–30 minutes to complete. The skill polls `DATA_getAuditStatus` until `done` — be patient.
-- The severity scale comes from SE Ranking's audit (not arbitrary). Map them via `references/severity-mapping.md` so impact × effort scoring is consistent run-to-run.
-- For sites with >10k pages, consider auditing critical sections separately (set audit URL filters in SE Ranking) rather than crawling the whole site every time.
+- **Sample size matters.** The default 50-page cap means the audit reflects your highest-traffic pages, not the whole site. Increase `--limit` for broader coverage (each additional page is one `on_page_instant_pages` call).
+- **Firecrawl is required.** Without it, the skill cannot enumerate the site's pages. Provide `--urls` as a fallback if Firecrawl is unavailable.
+- **Lighthouse is optional** but strongly recommended for Core Web Vitals lab baselines. Pass `--no-lighthouse` to skip if speed is a priority.
+- The severity scale follows `references/severity-mapping.md` — impact × effort scoring is consistent run-to-run.
+- For large sites (>500 pages), focus the sample on key sections: pass `--urls` with a curated list of critical landing pages rather than relying on Firecrawl map discovery.
 - Pair with `seo-drift` for regression tracking: this skill is the snapshot, drift is the diff.
-- Pair with `seo-sitemap` for orphan/missing-page analysis (it consumes this skill's audit data).
+- Pair with `seo-sitemap` for orphan/missing-page analysis.
 - Don't auto-apply fixes. The skill diagnoses; humans decide which fixes to ship and in what order.

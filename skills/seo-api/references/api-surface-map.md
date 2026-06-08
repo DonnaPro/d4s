@@ -1,207 +1,221 @@
 # API Surface Map
 
-The decision tree for "which API and which tool do I need". Pulled from the live MCP server's tool catalogue plus the canonical docs at `seranking.com/api/*`.
+The decision tree for "which DataForSEO tool category and which tool do I need". Pulled from the live MCP server's tool catalogue.
 
 ## Top-level split
 
-| API | Owns | Billed against | Required plan |
-|---|---|---|---|
-| **Data API** | Research-shaped data on any domain. No prior account setup. | Credits. | Any with API credits. |
-| **Project API** | Operations on the user's own SE Ranking projects. | Plan limits (Sites / Keywords / Audit Pages / AIRT Prompts). | Business or Enterprise. |
+DataForSEO exposes a single set of MCP tools authenticated via Basic Auth. All tools bill against API credits tied to the account. There is no separate "project API" — all tools are research/data oriented and require no prior account setup on the target domain.
 
-**Both APIs share a single API key.** A request lands on Data API or Project API based on its endpoint path (`/v1/backlinks/*` vs `/v1/projects/*`), not based on which key you sent.
+## Tool categories
 
-## Data API surfaces
+### SERP (~3 tools)
 
-### Backlinks (~30 tools, prefix `DATA_*Backlinks*` / `DATA_*RefDomains*` / `DATA_*Ips*`)
+Real-time SERP results for any keyword and location.
 
-Read backlink profile of any domain.
+- `serp_organic_live_advanced` — Google organic results for a keyword + location. Returns up to 100 results with rank, URL, title, snippet, featured snippets, PAA, etc.
+- `serp_locations` — List valid location codes and location names for use in SERP tools.
+- `serp_youtube_organic_live_advanced` — YouTube search results for a keyword.
 
-- **Summary & metrics:** `DATA_getBacklinksSummary`, `DATA_getBacklinksMetrics`, `DATA_getBacklinksCount`.
-- **Lists:** `DATA_getAllBacklinks`, `DATA_getBacklinksRaw`, `DATA_listNewLostBacklinks`.
-- **Anchors:** `DATA_getBacklinksAnchors`.
-- **Referring domains:** `DATA_getBacklinksRefDomains`, `DATA_getTotalRefDomainsCount`, `DATA_getNewLostRefDomainsCount`, `DATA_listNewLostReferringDomains`.
-- **Referring IPs / subnets:** `DATA_getReferringIps`, `DATA_getReferringIpsCount`, `DATA_getReferringSubnetsCount`.
-- **Authority:** `DATA_getDomainAuthority`, `DATA_getDomainAuthorityHistory`, `DATA_getDistributionOfDomainAuthority`, `DATA_getPageAuthority`, `DATA_getPageAuthorityHistory`, `DATA_getBacklinksAuthority`.
-- **History:** `DATA_getCumulativeBacklinksHistory`, `DATA_getNewLostBacklinksCount`.
-- **Indexed pages:** `DATA_getBacklinksIndexedPages`.
-- **Export (async):** `DATA_exportBacklinksData` → `DATA_getBacklinksExportStatus`.
+**When to use:** User wants live SERP data for a keyword, competitor rank checks, SERP feature detection.
 
-### Domain analysis (~12 tools)
+---
 
-Read keyword / traffic / competitor / ad profile of any domain.
+### DataForSEO Labs (~20 tools, prefix `dataforseo_labs_*`)
 
-- **Overview:** `DATA_getDomainOverviewWorldwide` (global), `DATA_getDomainOverviewDatabases` (per-region), `DATA_getDomainOverviewHistory` (12-month).
-- **Keywords:** `DATA_getDomainKeywords` (full list; supports `url` param for per-URL).
-- **Pages:** `DATA_getDomainPages` (top pages by traffic).
-- **Subdomains:** `DATA_getDomainSubdomains`.
-- **Competitors:** `DATA_getDomainCompetitors`, `DATA_getDomainKeywordsComparison`.
-- **Ads:** `DATA_getDomainAdsByDomain`, `DATA_getDomainAdsByKeyword`.
-- **URL-level overview:** `DATA_getUrlOverviewWorldwide`.
+Historical and aggregated SEO intelligence on any domain or keyword. Does not require crawling — powered by DataForSEO's own index.
 
-> **`DATA_getDomainCompetitors` 60KB overflow.** For popular domains the response (up to 500 rows) exceeds the MCP client's inline token limit and is auto-saved to a file rather than returned inline. Recover it with a `jq` slice on the saved file — e.g. `jq -r '.data[:15][] | [.domain, .common_keywords] | @tsv' <saved-file>`. This is an MCP-transport limit only; the raw REST endpoint `GET /v1/domain/competitors` returns the full JSON uncapped. The same overflow can hit other large list endpoints — `DATA_getDomainKeywords`, `DATA_getAllBacklinks` — on big domains.
+- **Domain-level:**
+  - `dataforseo_labs_google_domain_rank_overview` — Traffic, keyword count, and organic metrics for a domain.
+  - `dataforseo_labs_google_ranked_keywords` — All keywords a domain ranks for (paginated).
+  - `dataforseo_labs_google_competitors_domain` — Competing domains by keyword overlap.
+  - `dataforseo_labs_google_domain_intersection` — Shared keywords between two domains.
+  - `dataforseo_labs_google_historical_rank_overview` — Domain-level traffic/keyword history over time.
+  - `dataforseo_labs_google_relevant_pages` — Top pages on a domain by estimated traffic.
+  - `dataforseo_labs_google_subdomains` — Traffic breakdown per subdomain.
+  - `dataforseo_labs_google_serp_competitors` — Top-ranking competitors for a set of keywords.
+  - `dataforseo_labs_google_keywords_for_site` — Keywords most associated with a domain.
+  - `dataforseo_labs_google_historical_serps` — Historical SERP snapshots for a keyword.
 
-### Keyword research (~7 tools)
+- **Keyword-level:**
+  - `dataforseo_labs_google_keyword_ideas` — Keyword ideas from a seed keyword.
+  - `dataforseo_labs_google_keyword_suggestions` — Autocomplete-based keyword suggestions.
+  - `dataforseo_labs_google_related_keywords` — Semantically related keywords.
+  - `dataforseo_labs_google_keyword_overview` — Volume, KD, CPC, and SERP features for a keyword.
+  - `dataforseo_labs_google_historical_keyword_data` — Historical volume and CPC for a keyword.
+  - `dataforseo_labs_google_top_searches` — Top trending searches in a category/location.
+  - `dataforseo_labs_google_page_intersection` — Keywords shared between multiple URLs.
 
-- `DATA_getRelatedKeywords`, `DATA_getSimilarKeywords`, `DATA_getLongTailKeywords`, `DATA_getKeywordQuestions`.
-- `DATA_exportKeywords` (bulk export).
+- **Utility:**
+  - `dataforseo_labs_search_intent` — Classify keywords by intent (informational, navigational, commercial, transactional).
+  - `dataforseo_labs_bulk_keyword_difficulty` — KD scores for up to 1000 keywords in one call.
+  - `dataforseo_labs_bulk_traffic_estimation` — Estimated organic traffic for a list of URLs.
 
-### SERP (~6 tools)
+**When to use:** Domain research, keyword research, competitor analysis, content gap analysis.
 
-Real-time top-100 SERP results.
+---
 
-- **Task-based (recommended for batches):** `DATA_getSerpTasks` (list), `DATA_getSerpTaskResults`, `DATA_getSerpTaskAdvancedResults`.
-- **Synchronous:** `DATA_getSerpResults`.
-- **Locations:** `DATA_getSerpLocations`.
-- **HTML dump:** `DATA_getSerpHtmlDump` (raw SERP HTML for diagnostic).
+### Backlinks (~18 tools, prefix `backlinks_*`)
 
-### Website audit — on-demand (~6 tools, lives under DATA)
+Backlink data for any domain, URL, or IP range.
 
-For one-off audits of any site (vs. Project-attached audits below).
+- **Summary & overview:**
+  - `backlinks_summary` — Total backlinks, referring domains, rank, spam score for a target.
+  - `backlinks_domain_pages_summary` — Per-page backlink summary for a domain.
+  - `backlinks_bulk_ranks` — Domain Authority-equivalent ranks for a list of domains.
+  - `backlinks_bulk_spam_score` — Spam scores for a list of domains.
+  - `backlinks_bulk_pages_summary` — Backlink summary for a list of pages.
 
-- **Create:** `DATA_createStandardAudit`, `DATA_createAdvancedAudit`.
-- **Status:** `DATA_getAuditStatus`, `DATA_listAudits`.
-- **Report:** `DATA_getAuditReport`, `DATA_getCrawledPages`, `DATA_getIssuesByUrl`, `DATA_getAuditPagesByIssue`.
-- **Manage:** `DATA_updateAuditTitle`, `DATA_recheckAudit`, `DATA_deleteAudit`, `DATA_getAuditHistory`.
+- **Full lists:**
+  - `backlinks_backlinks` — Full backlink list for a target (paginated).
+  - `backlinks_bulk_backlinks` — Backlinks for multiple targets in one call.
+  - `backlinks_referring_domains` — Referring domains list for a target.
+  - `backlinks_bulk_referring_domains` — Referring domains for multiple targets.
+  - `backlinks_referring_networks` — Referring IP networks/subnets.
+  - `backlinks_domain_pages` — Pages on a domain sorted by inbound links.
 
-### AI Search (~10 tools, prefix `DATA_getAiSearch*`)
+- **New / lost:**
+  - `backlinks_timeseries_summary` — Backlink count over time (timeseries).
+  - `backlinks_timeseries_new_lost_summary` — New and lost backlinks timeseries.
+  - `backlinks_bulk_new_lost_backlinks` — New/lost backlinks delta for multiple targets.
+  - `backlinks_bulk_new_lost_referring_domains` — New/lost referring domains delta for multiple targets.
 
-LLM-engine visibility data.
+- **Competitive:**
+  - `backlinks_competitors` — Domains competing for the same backlink sources.
+  - `backlinks_domain_intersection` — Shared referring domains between two targets.
+  - `backlinks_page_intersection` — Shared referring pages between multiple URLs.
 
-- **Overview:** `DATA_getAiSearchOverview`, `DATA_getAiSearchLeaderboard`.
-- **Per-brand / per-target:** `DATA_getAiSearchBrand`, `DATA_getAiSearchPromptsByBrand`, `DATA_getAiSearchPromptsByTarget`.
-- **Page-level:** `DATA_getAiVisibilityPages`, `DATA_getAiVisibilityPrompts`, `DATA_getAiVisibilityResponses`.
-- **Sources / topics / sentiment / models / aliases / scores:** the `DATA_getAiVisibility*` family.
-- **Reports:** `DATA_getAiVisibilityReports`.
+- **Anchors:**
+  - `backlinks_anchors` — Anchor text distribution for a target.
 
-### Account & system (~4 tools)
+**When to use:** Link building prospecting, backlink audits, competitor link gap analysis, spam detection.
 
-- `DATA_getSubscription` — plan info. Returns `{ subscription_info: { status, units_limit, units_left, start_date, expiraton_date } }`. **`units_left` is the figure to forecast against** — it matches the official credit-system docs.
-- `DATA_getCreditBalance` — returns `{ limit, used }`. **Not an alias of `getSubscription`:** the two report different remaining-credit figures that do not reconcile against `limit` (an ~8.6M gap observed in testing). Use it as a secondary view only; forecast from `getSubscription.units_left`.
-- `DATA_getUserProfile` — user identity + workspace.
+---
 
-## Project API surfaces
+### On-Page (~3 tools, prefix `on_page_*`)
 
-Project API mutates the user's account. Confirm all `create / add / delete / update` calls before invoking.
+Crawl and audit any URL or set of pages on demand.
 
-### Project management (~15 tools)
+- `on_page_instant_pages` — Crawl a single URL and return on-page SEO signals (title, meta, headings, links, schema, Core Web Vitals hints, etc.).
+- `on_page_lighthouse` — Run a Lighthouse audit on a URL (performance, accessibility, SEO, best practices scores).
+- `on_page_content_parsing` — Parse and extract structured content from a URL (text, headings, links, images).
 
-- **List:** `PROJECT_listProjects`, `PROJECT_listOwnedProjects`, `PROJECT_listSharedProjects`.
-- **CRUD:** `PROJECT_createProject`, `PROJECT_updateProject`, `PROJECT_deleteProject`.
-- **Groups:** `PROJECT_listProjectGroups`, `PROJECT_createProjectGroup`, `PROJECT_updateProjectGroup`, `PROJECT_deleteProjectGroup`, `PROJECT_moveProjectsToGroup`.
-- **Sharing:** `PROJECT_shareProject`.
-- **Summary:** `PROJECT_getSummary`, `PROJECT_getSeoPotential`.
-- **Brand:** `PROJECT_getSiteBrand`, `PROJECT_saveSiteBrand`.
+**When to use:** Technical SEO audits on a specific URL, content extraction, performance scoring.
 
-### Rank tracking — keywords & search engines (~25 tools)
+---
 
-- **Keywords CRUD:** `PROJECT_listKeywords`, `PROJECT_addKeywords`, `PROJECT_updateKeyword`, `PROJECT_deleteKeywords`.
-- **Keyword groups:** `PROJECT_listKeywordGroups`, `PROJECT_createKeywordGroup`, `PROJECT_updateKeywordGroup`, `PROJECT_deleteKeywordGroup`, `PROJECT_moveKeywordsToGroup`.
-- **Tags:** `PROJECT_listTags`, `PROJECT_addTag`, `PROJECT_updateTag`, `PROJECT_deleteTag`.
-- **Search engines:** `PROJECT_getSearchEngines`, `PROJECT_addSearchEngine`, `PROJECT_updateSearchEngine`, `PROJECT_deleteSearchEngine`, `PROJECT_getAvailableSearchEngines`, `PROJECT_getAvailableRegions`, `PROJECT_getGoogleLanguages`.
-- **Positions:** `PROJECT_getPositionHistory`, `PROJECT_runPositionCheck`, `PROJECT_setKeywordPosition`, `PROJECT_getKeywordStats`, `PROJECT_getCheckDates`, `PROJECT_getHistoricalDates`.
-- **GSC integration:** `PROJECT_getGoogleSearchConsole`.
-- **Stats:** `PROJECT_getAdsStats`.
+### AI Optimization (~9 tools, prefix `ai_opt_*` / `ai_optimization_*`)
 
-### Competitors (~7 tools)
+LLM-engine visibility — how brands and domains appear in ChatGPT and other AI search engines.
 
-- `PROJECT_listCompetitors`, `PROJECT_addCompetitor`, `PROJECT_deleteCompetitor`.
-- `PROJECT_getCompetitorPositions`, `PROJECT_getCompetitorSerp10`, `PROJECT_getCompetitorSerp100`, `PROJECT_getAllCompetitorsMetrics`.
+- **LLM mention tracking:**
+  - `ai_opt_llm_ment_search` — Search for LLM mentions of a brand or keyword across AI engines.
+  - `ai_opt_llm_ment_top_domains` — Top domains cited in AI engine responses for a topic.
+  - `ai_opt_llm_ment_top_pages` — Top pages cited in AI engine responses.
+  - `ai_opt_llm_ment_agg_metrics` — Aggregated mention metrics (visibility score, share of voice) for a domain.
+  - `ai_opt_llm_ment_cross_agg_metrics` — Cross-engine comparison of mention metrics.
 
-### Website audit (Project-attached, ~15 tools)
+- **ChatGPT scraping:**
+  - `ai_optimization_chat_gpt_scraper` — Submit a prompt to ChatGPT and return the response.
+  - `ai_optimization_chat_gpt_scraper_locations` — Valid location options for ChatGPT scraper.
+  - `ai_optimization_llm_response` — Get a response from a specified LLM for a prompt.
 
-For ongoing audits tied to a project. Distinct from on-demand audits via `DATA_*` above.
+- **AI keyword data:**
+  - `ai_optimization_keyword_data_search_volume` — Search volume data for AI-optimized keywords.
+  - `ai_opt_kw_data_loc_and_lang` — Valid location and language combinations for AI keyword data.
 
-- **Create & manage:** `PROJECT_createAudit`, `PROJECT_recheckAudit`, `PROJECT_deleteAudit`, `PROJECT_updateAuditTitle`, `PROJECT_listAudits`.
-- **Settings:** `PROJECT_getAuditSettings`, `PROJECT_updateAuditSettings`, `PROJECT_resetAuditSettings`.
-- **Sitemaps & source pages:** `PROJECT_listAuditSitemaps`, `PROJECT_addAuditSitemap`, `PROJECT_deleteAuditSitemap`, `PROJECT_listAuditSourcePages`, `PROJECT_addAuditSourcePages`, `PROJECT_deleteAuditSourcePages`.
-- **Reports:** `PROJECT_getAuditReport`, `PROJECT_getAuditHistory`, `PROJECT_getAuditStatus`, `PROJECT_getCrawledPages`, `PROJECT_getIssuesByUrl`, `PROJECT_getAuditPagesByIssue`.
+**When to use:** GEO (generative engine optimization), brand visibility in AI search, AI answer tracking.
 
-### Backlinks (Project-attached, ~10 tools)
+---
 
-For monitoring user-owned backlinks (vs. crawling any domain via Data API).
+### Keyword Data (~5 tools, prefix `kw_data_*`)
 
-- **CRUD:** `PROJECT_listProjectBacklinks`, `PROJECT_addProjectBacklink`, `PROJECT_deleteProjectBacklinks`, `PROJECT_recheckProjectBacklinks`.
-- **Groups:** `PROJECT_listBacklinkGroups`, `PROJECT_createBacklinkGroup`, `PROJECT_renameBacklinkGroup`, `PROJECT_deleteBacklinkGroup`, `PROJECT_moveBacklinksToGroup`.
-- **GSC import:** `PROJECT_runBacklinkGscImport`, `PROJECT_getBacklinkGscImportStatus`, `PROJECT_updateBacklinkImportSettings`.
-- **Stats:** `PROJECT_getBacklinkStats`, `PROJECT_getFoundLinks`.
-- **Disavow:** `PROJECT_listDisavowedBacklinks`, `PROJECT_addDisavowedBacklinks`, `PROJECT_deleteDisavowedBacklink`.
+Google Ads and Google Trends data for keywords.
 
-### AIRT — AI Result Tracker (~10 tools)
+- `kw_data_google_ads_search_volume` — Monthly search volume from Google Ads Keyword Planner.
+- `kw_data_google_ads_locations` — Valid location codes for Google Ads keyword data.
+- `kw_data_dfs_trends_explore` — DataForSEO Trends (Google Trends-equivalent) data for keywords.
+- `kw_data_dfs_trends_subregion_interests` — Regional interest breakdown for a keyword trend.
+- `kw_data_dfs_trends_demography` — Demographic interest breakdown for a keyword trend.
+- `kw_data_google_trends_explore` — Google Trends data for a keyword (raw from Google).
 
-- **Prompts:** `PROJECT_listPrompts`, `PROJECT_addPrompts`, `PROJECT_deletePrompts`, `PROJECT_transferPrompts`.
-- **Prompt groups:** `PROJECT_listPromptGroups`, `PROJECT_createPromptGroup`, `PROJECT_updatePromptGroup`, `PROJECT_deletePromptGroup`, `PROJECT_deleteAllPromptsInGroup`, `PROJECT_movePromptsToGroup`, `PROJECT_changePromptGroupOrder`.
-- **LLM engines:** `PROJECT_listLlmEngines`, `PROJECT_getLlmEngine`, `PROJECT_createLlmEngine`, `PROJECT_updateLlmEngine`, `PROJECT_deleteLlmEngine`.
-- **Status & results:** `PROJECT_getLlmStatus`, `PROJECT_getLlmStatistics`, `PROJECT_getPromptAnswer`, `PROJECT_getPromptsRankings`.
+**When to use:** Accurate search volume data, trending keyword detection, regional demand analysis.
 
-### Marketing plan (~3 tools)
+---
 
-- `PROJECT_getMarketingPlan`, `PROJECT_addPlanTask`, `PROJECT_updatePlanTask`, `PROJECT_setPlanTaskStatus`, `PROJECT_deletePlanTask`.
+### Business Data (~1 tool)
 
-### Sub-accounts (~5 tools)
+- `business_data_business_listings_search` — Search Google Business profiles / local listings for a query + location. Returns NAP data, categories, ratings, website.
 
-- `PROJECT_listSubAccounts`, `PROJECT_createSubAccount`, `PROJECT_updateSubAccount`, `PROJECT_deleteSubAccount`, `PROJECT_getSubAccountDetails`.
+**When to use:** Local SEO research, lead generation, citation auditing.
 
-### Account & profile (~3 tools)
+---
 
-- `PROJECT_getUserProfile`, `PROJECT_getAdsStats`.
+### Content Analysis (~3 tools, prefix `content_analysis_*`)
 
-## ID resolution — the lookup-first pattern
+Analyse how a topic or keyword is covered across the web.
 
-Most Project API operations need an ID. The skill should call the appropriate `*list*` or `*available*` tool first when the user didn't supply it.
+- `content_analysis_search` — Find pages mentioning a keyword, with metadata (date, author, domain authority, social shares).
+- `content_analysis_summary` — Aggregated content metrics for a keyword (total mentions, top domains, avg word count).
+- `content_analysis_phrase_trends` — Volume and trend data for phrases across web content over time.
 
-| User said… | Lookup tool | Returns | Pass to |
-|---|---|---|---|
-| "for my project on acme.com" | `PROJECT_listProjects` | List of projects + `project_id` | `project_id` to any per-project tool |
-| "track in the US" | (none — pass `country_code: "us"` directly) | — | `PROJECT_addSearchEngine` resolves automatically |
-| "track in Catalonia" | `PROJECT_getAvailableSearchEngines` | `id` for regional engine | `search_engine_id` to `PROJECT_addSearchEngine` |
-| "in Spanish" | `PROJECT_getGoogleLanguages` | Language code list | `language_code` to rank-tracking tools |
-| "in Barcelona" | `PROJECT_getAvailableRegions` | Region records with verbatim `name` | `region_name` to rank-tracking tools (use exact name — abbreviations rejected) |
-| "for keyword group X" | `PROJECT_listKeywordGroups` | Group IDs + names | `group_id` to `PROJECT_moveKeywordsToGroup` etc. |
-| "for our backlink group X" | `PROJECT_listBacklinkGroups` | Group IDs + names | `group_id` to backlink group tools |
-| "for AIRT prompt group X" | `PROJECT_listPromptGroups` | Group IDs + names | `group_id` to prompt group tools |
-| "for SERP in {city}" | `DATA_getSerpLocations` | Locations + codes | `location` to SERP tools |
-| "audit X" | `DATA_listAudits` / `PROJECT_listAudits` | Audit IDs | `audit_id` to report/recheck/delete |
+**When to use:** Content gap research, PR monitoring, topical authority mapping.
+
+---
+
+### Domain Analytics (~2 tools, prefix `domain_analytics_*`)
+
+Technology stack and WHOIS data.
+
+- `domain_analytics_technologies_domain_technologies` — Tech stack detected on a domain (CMS, analytics, hosting, JS frameworks, etc.).
+- `domain_analytics_whois_overview` — WHOIS registration data, registrar, expiry, nameservers.
+
+**When to use:** Tech stack research, domain expiry monitoring, competitor tech profiling.
+
+---
+
+### Merchant / Amazon (~3 tools, prefix `merchant_amazon_*`)
+
+Amazon product and seller data.
+
+- `merchant_amazon_products_live_advanced` — Amazon product search results for a query.
+- `merchant_amazon_asin_live_advanced` — Full product data for a specific ASIN.
+- `merchant_amazon_sellers_live_advanced` — Sellers listing a specific product (by ASIN).
+- `merchant_amazon_locations` — Valid location codes for Amazon data.
+
+**When to use:** Amazon SEO research, product competitive analysis, marketplace intelligence.
+
+---
 
 ## Quick decision tree
 
 ```
-"I want to research a domain I don't own"
-  → Data API
-    backlinks → DATA_getBacklinks*
-    keywords → DATA_getDomainKeywords / getDomainOverviewWorldwide
-    competitors → DATA_getDomainCompetitors
-    SERP for a keyword → DATA_getSerpResults / SerpTask
-    one-off audit → DATA_createStandardAudit
-    LLM visibility → DATA_getAiSearch*
+"I want live SERP results for a keyword"
+  → serp_organic_live_advanced (+ serp_locations to resolve location code)
 
-"I want to track/manage state on my own SE Ranking projects"
-  → Project API (needs Business/Enterprise plan)
-    create project → PROJECT_createProject
-    add keywords to track → PROJECT_addKeywords (after PROJECT_addSearchEngine)
-    daily ranks → PROJECT_runPositionCheck / PROJECT_getPositionHistory
-    project audit → PROJECT_createAudit
-    backlink monitoring → PROJECT_addProjectBacklink (with PROJECT_runBacklinkGscImport for bulk)
-    AIRT prompts → PROJECT_addPrompts (with PROJECT_createLlmEngine if a custom engine)
-    competitors → PROJECT_addCompetitor + PROJECT_getCompetitorPositions
+"I want to research a domain's organic performance"
+  → dataforseo_labs_google_domain_rank_overview
+  → dataforseo_labs_google_ranked_keywords (full keyword list)
+  → dataforseo_labs_google_competitors_domain
 
-"I want to integrate SE Ranking into another tool"
-  → Both, usually
-    e.g., "weekly client report"
-      use PROJECT_getPositionHistory + DATA_getDomainCompetitors + DATA_getBacklinksSummary
-      pipe into Looker / Sheets / your dashboard
+"I want to research keywords"
+  → dataforseo_labs_google_keyword_ideas / keyword_suggestions / related_keywords
+  → dataforseo_labs_bulk_keyword_difficulty (score KD on the list)
+  → kw_data_google_ads_search_volume (accurate volume)
+
+"I want to audit a URL"
+  → on_page_instant_pages (on-page signals)
+  → on_page_lighthouse (performance + SEO scores)
+
+"I want backlink data"
+  → backlinks_summary (overview)
+  → backlinks_backlinks (full list)
+  → backlinks_competitors (link gap)
+
+"I want to track brand visibility in AI engines"
+  → ai_opt_llm_ment_search / ai_opt_llm_ment_agg_metrics
+  → ai_optimization_chat_gpt_scraper (direct prompt testing)
+
+"I want Amazon product data"
+  → merchant_amazon_products_live_advanced (search)
+  → merchant_amazon_asin_live_advanced (specific product)
 ```
-
-## Built-in MCP prompts (server-shipped recipes)
-
-The MCP server ships 5 built-in prompts (via the `prompts/list` capability) — encoded recommended tool sequences for common workflows. **Prefer these when the user's ask matches**:
-
-| Prompt | What it does | Args |
-|---|---|---|
-| `serp-analysis` | Compare SERPs across two locations for a keyword | `keyword`, `location1`, `location2`, optional `language`, optional `device` |
-| `backlink-gap` | Find backlink opportunities vs. competitors | `my_domain`, `competitors` (comma-separated), optional `min_domain_trust` |
-| `domain-traffic-competitors` | Traffic + top competitors for a domain | `domain` |
-| `keyword-clusters` | Build intent-grouped keyword clusters | `market`, `seed_keywords` |
-| `ai-share-of-voice` | LLM-engine visibility vs. competitors | `domain`, `competitors`, optional `country`, `llm_engines` |
-
-These prompts are accessible via any spec-compliant MCP client. In Claude Code: `/mcp` shows them; calling `mcp__claude_ai_SE_Ranking__<prompt-name>` (varies by client) executes.

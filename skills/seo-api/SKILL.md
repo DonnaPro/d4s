@@ -1,190 +1,371 @@
 ---
 name: seo-api
-description: SE Ranking API integration architect for developers. Covers the entire SE Ranking surface — Data API (keyword research, backlinks, domain & competitor analysis, SERP, website audit, AI Search, account) AND Project API (rank tracking, project management, keyword/competitor/backlink/group operations, marketing plan, sub-accounts, AIRT prompts). For any "how do I…" question about endpoints, parameters, JSON schemas, credit cost, rate limits, or authentication. Produces ready-to-paste cURL / Python / TypeScript / MCP-tool-call recipes, and (with explicit confirmation) wires up Project API state — create projects, add keywords, configure audits, set up AIRT prompt groups, manage backlink groups. Pulls live tool schemas from the connected SE Ranking MCP so reference data is never stale. Distinct from the other 24 SEO skills which produce analysis deliverables (briefs, audits, reports); `seo-api` produces integration recipes and wired-up state. Use when the user asks "how do I use SE Ranking API to do X", "what endpoint gives me Y", "credit cost of workflow Z", "build a rank tracker", "set up an audit for client X", "Postman / cURL / Python / TypeScript for SE Ranking", "what's the rate limit", "integrate SE Ranking with Looker / n8n / Make", "create a project", "add keywords", or any direct question about endpoints, parameters, schemas, or wiring up Project API resources.
+description: DataForSEO API integration guide for developers. Covers the full DataForSEO MCP surface — SERP, DataForSEO Labs (keyword research, domain analysis, competitor research), Backlinks, On-Page, AI Optimization (LLM mentions, ChatGPT scraper), Keyword Data, Business Data, Content Analysis, Domain Analytics, YouTube SERP, and Merchant. For any "how do I…" question about tools, parameters, JSON schemas, rate limits, or authentication. Produces ready-to-paste cURL / Python / TypeScript / MCP-tool-call recipes for common workflows. Distinct from the other SEO skills which produce analysis deliverables (briefs, audits, reports); seo-api produces integration recipes. Use when the user asks "how do I use DataForSEO to do X", "what tool gives me Y", "build a rank tracker", "pull backlinks into BigQuery", "cURL / Python / TypeScript for DataForSEO", "what's the rate limit", "integrate DataForSEO with n8n / Make / Looker", or any direct question about tools, parameters, schemas, or wiring up DataForSEO data pipelines.
 ---
-> Live with the SE Ranking MCP at `https://api.seranking.com/mcp`. Tool schemas are introspected live; this skill never relies on a frozen snapshot of the API surface.
 
-# SE Ranking API Integration Architect
+# DataForSEO API Integration Guide
 
-Help developers ship real integrations against the SE Ranking SEO Data API and Project API. The deliverable is either a **code recipe** (ready-to-paste cURL / Python / TypeScript / MCP-tool-call sequence) or **live wiring** of Project API state (create projects, add keywords, configure audits, set up AIRT prompts), or both. The skill knows the entire 195-tool surface, the credit and rate-limit cost of every call, and the canonical setup story for every major MCP client.
+Help developers ship real integrations against the DataForSEO API via the DataForSEO MCP server. The deliverable is a **code recipe** (ready-to-paste cURL / Python / TypeScript / MCP-tool-call sequence) covering authentication, tool selection, parameter patterns, and retry strategy.
 
 ## Prerequisites
 
-- **SE Ranking MCP connected** at `https://api.seranking.com/mcp`. Single API key authenticates both `DATA_*` and `PROJECT_*` tools through the unified gateway. If `/mcp` doesn't show `se-ranking`, the skill emits the install command and stops — see `references/auth-and-keys.md`.
-- **(Optional) `WebFetch`** for fetching deep guides at `seranking.com/api/data/*` and `seranking.com/api/project/*` when the request needs prose beyond JSON Schema.
-- User provides: an integration goal in plain language (e.g., "build a rank tracker for client X", "pull all backlinks for these 50 domains into BigQuery weekly", "configure an audit + AIRT prompts for a new project"). The skill interviews only when the goal is ambiguous.
+- **DataForSEO MCP server connected.** Authentication is handled via `DATAFORSEO_USERNAME` and `DATAFORSEO_PASSWORD` environment variables — the MCP server injects HTTP Basic Auth on every request. No OAuth, no per-call token management.
+- **(Optional) `WebFetch`** for fetching deep reference docs at `docs.dataforseo.com` when the request needs prose beyond the tool schema.
+- User provides: an integration goal in plain language (e.g., "pull ranked keywords for a domain", "get backlink summary for these 50 domains weekly", "check LLM mentions for my brand"). The skill interviews only when the goal is ambiguous.
+
+## Authentication
+
+DataForSEO uses **HTTP Basic Auth**. Every API call carries a `Base64(username:password)` Authorization header.
+
+```bash
+# cURL
+curl -u "$DATAFORSEO_USERNAME:$DATAFORSEO_PASSWORD" \
+  "https://api.dataforseo.com/v3/dataforseo_labs/google/domain_rank_overview/live" \
+  -H "Content-Type: application/json" \
+  -d '[{"target": "example.com", "language_code": "en", "location_code": 2840}]'
+```
+
+```python
+# Python
+import requests, base64, os
+
+auth = (os.environ["DATAFORSEO_USERNAME"], os.environ["DATAFORSEO_PASSWORD"])
+r = requests.post(
+    "https://api.dataforseo.com/v3/dataforseo_labs/google/domain_rank_overview/live",
+    auth=auth,
+    json=[{"target": "example.com", "language_code": "en", "location_code": 2840}]
+)
+```
+
+```typescript
+// TypeScript
+const auth = Buffer.from(`${process.env.DATAFORSEO_USERNAME}:${process.env.DATAFORSEO_PASSWORD}`).toString("base64");
+const res = await fetch("https://api.dataforseo.com/v3/dataforseo_labs/google/domain_rank_overview/live", {
+  method: "POST",
+  headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
+  body: JSON.stringify([{ target: "example.com", language_code: "en", location_code: 2840 }])
+});
+```
+
+Via MCP: the server reads `DATAFORSEO_USERNAME` / `DATAFORSEO_PASSWORD` from the environment — no auth parameters are passed in tool calls.
+
+## Tool Surface
+
+### SERP
+| MCP tool | What it returns |
+|---|---|
+| `serp_organic_live_advanced` | Live Google organic SERP for a keyword — positions, titles, snippets, URLs, SERP features |
+| `serp_locations` | Available location codes for SERP queries |
+| `serp_youtube_organic_live_advanced` | Live YouTube SERP for a keyword |
+| `serp_youtube_locations` | Available location codes for YouTube SERP |
+
+### DataForSEO Labs
+| MCP tool | What it returns |
+|---|---|
+| `dataforseo_labs_google_domain_rank_overview` | Domain-level traffic estimates, keyword counts, ETV, backlink metrics |
+| `dataforseo_labs_google_ranked_keywords` | All keywords a domain ranks for, with positions, search volume, CPC |
+| `dataforseo_labs_google_competitors_domain` | Competitor domains ranked for similar keywords |
+| `dataforseo_labs_google_domain_intersection` | Keywords two or more domains share |
+| `dataforseo_labs_google_keyword_ideas` | Keyword ideas from a seed list |
+| `dataforseo_labs_google_keyword_suggestions` | Keyword suggestions for a seed keyword |
+| `dataforseo_labs_google_related_keywords` | Related keywords for a seed keyword |
+| `dataforseo_labs_google_historical_rank_overview` | Monthly domain rank history |
+| `dataforseo_labs_google_historical_keyword_data` | Monthly keyword metrics history (volume, CPC, competition) |
+| `dataforseo_labs_google_historical_serps` | Historical SERP snapshots for a keyword |
+| `dataforseo_labs_google_relevant_pages` | Pages from a domain that Google has indexed |
+| `dataforseo_labs_google_subdomains` | Subdomain traffic breakdown for a domain |
+| `dataforseo_labs_google_serp_competitors` | Domains competing on the same SERP for a keyword |
+| `dataforseo_labs_google_page_intersection` | Keywords where specific URLs intersect on the SERP |
+| `dataforseo_labs_google_keywords_for_site` | Keywords driving traffic to a domain (similar to ranked_keywords but broader) |
+| `dataforseo_labs_google_top_searches` | Top trending searches for a location/category |
+| `dataforseo_labs_search_intent` | Search intent classification (informational / transactional / navigational / commercial) for a keyword list |
+| `dataforseo_labs_bulk_keyword_difficulty` | Keyword difficulty scores in bulk |
+| `dataforseo_labs_bulk_traffic_estimation` | Estimated traffic for a list of domains |
+
+### Backlinks
+| MCP tool | What it returns |
+|---|---|
+| `backlinks_summary` | Domain-level backlink metrics: referring domains, total backlinks, spam score, ranks |
+| `backlinks_referring_domains` | Referring domain list with domain authority, anchor counts, link types |
+| `backlinks_anchors` | Top anchor text distribution for a domain |
+| `backlinks_bulk_ranks` | Domain Authority / Page Authority equivalents for a list of domains |
+| `backlinks_bulk_backlinks` | Backlink counts for a list of domains in one call |
+| `backlinks_bulk_new_lost_referring_domains` | New and lost referring domains in bulk |
+| `backlinks_bulk_referring_domains` | Referring domain counts in bulk |
+| `backlinks_bulk_spam_score` | Spam scores for a list of domains |
+| `backlinks_bulk_pages_summary` | Page-level backlink metrics in bulk |
+| `backlinks_referring_networks` | Referring IP and ASN networks |
+| `backlinks_timeseries_summary` | Monthly trend of backlinks and referring domains |
+| `backlinks_timeseries_new_lost_summary` | Monthly new vs. lost backlinks and referring domains trend |
+| `backlinks_backlinks` | Full backlink list with source/target URLs, anchor, link type, first/last seen |
+| `backlinks_competitors` | Domains that share backlink sources with the target |
+| `backlinks_domain_pages` | Page-level backlink breakdown for a domain |
+| `backlinks_domain_pages_summary` | Summary of pages with backlinks |
+| `backlinks_domain_intersection` | Shared referring domains across multiple targets |
+| `backlinks_page_intersection` | Referring domains pointing to multiple specific pages |
+| `backlinks_available_filters` | Available filter fields for backlinks queries |
+
+### On-Page
+| MCP tool | What it returns |
+|---|---|
+| `on_page_instant_pages` | On-page audit of specific URLs — HTTP status, canonicalization, title, meta description, headings, links, Core Web Vitals signals |
+| `on_page_lighthouse` | Full Lighthouse audit for a URL (performance, accessibility, SEO, best practices scores) |
+| `on_page_content_parsing` | Parsed page content: clean text, structured data, links, headings |
+
+### AI Optimization (LLM Mentions & AI Search)
+| MCP tool | What it returns |
+|---|---|
+| `ai_opt_llm_ment_search` | Search LLM mentions for a brand, keyword, or domain across AI models |
+| `ai_opt_llm_ment_top_domains` | Domains most frequently cited by LLMs for a topic |
+| `ai_opt_llm_ment_agg_metrics` | Aggregated LLM mention metrics (mention rate, sentiment, share of voice) |
+| `ai_opt_llm_ment_top_pages` | Specific pages most cited by LLMs for a topic |
+| `ai_opt_llm_ment_loc_and_lang` | Location and language options for LLM mentions queries |
+| `ai_opt_llm_ment_cross_agg_metrics` | Cross-model aggregated LLM mention metrics |
+| `ai_optimization_chat_gpt_scraper` | Live ChatGPT responses scraped for a query — returns what ChatGPT says and which sources it cites |
+| `ai_optimization_chat_gpt_scraper_locations` | Location options for ChatGPT scraper |
+| `ai_optimization_llm_response` | LLM response for a prompt from a specified model |
+| `ai_optimization_keyword_data_search_volume` | Search volume for AI-related keyword queries |
+| `ai_optimization_llm_mentions_filters` | Available filter fields for LLM mentions |
+| `ai_optimization_llm_models` | List of AI models tracked for LLM mention analysis |
+
+### Keyword Data
+| MCP tool | What it returns |
+|---|---|
+| `kw_data_google_ads_search_volume` | Google Ads search volume, CPC, competition for keyword lists |
+| `kw_data_google_ads_locations` | Location codes for Google Ads keyword data |
+| `kw_data_dfs_trends_explore` | DataForSEO Trends: keyword interest over time |
+| `kw_data_dfs_trends_subregion_interests` | Regional interest breakdown for a keyword |
+| `kw_data_dfs_trends_demography` | Demographic interest breakdown for a keyword |
+| `kw_data_google_trends_explore` | Google Trends interest data for keywords |
+| `kw_data_google_trends_categories` | Category list for Google Trends queries |
+
+### Business Data
+| MCP tool | What it returns |
+|---|---|
+| `business_data_business_listings_search` | Local business listings from Google Maps / Business Profiles |
+
+### Content Analysis
+| MCP tool | What it returns |
+|---|---|
+| `content_analysis_search` | Pages on the web mentioning a phrase or brand |
+| `content_analysis_summary` | Summary metrics for content mentioning a phrase (domain count, sentiment, traffic estimates) |
+| `content_analysis_phrase_trends` | Trend over time for how often a phrase is mentioned across the web |
+
+### Domain Analytics
+| MCP tool | What it returns |
+|---|---|
+| `domain_analytics_technologies_domain_technologies` | Technologies detected on a domain (CMS, analytics, CDN, etc.) |
+| `domain_analytics_technologies_available_filters` | Filter options for technology queries |
+| `domain_analytics_whois_overview` | WHOIS data for a domain (registrar, expiry, registrant) |
+| `domain_analytics_whois_available_filters` | Filter options for WHOIS queries |
+
+### YouTube SERP
+| MCP tool | What it returns |
+|---|---|
+| `serp_youtube_organic_live_advanced` | Live YouTube SERP — video titles, channels, view counts, publish dates |
+| `serp_youtube_video_info_live_advanced` | Detailed metadata for a specific YouTube video |
+| `serp_youtube_video_comments_live_advanced` | Comments for a YouTube video |
+| `serp_youtube_video_subtitles_live_advanced` | Subtitles/transcript for a YouTube video |
+
+### Merchant
+| MCP tool | What it returns |
+|---|---|
+| `merchant_amazon_asin_live_advanced` | Full product details for an Amazon ASIN |
+| `merchant_amazon_products_live_advanced` | Amazon product SERP for a search query |
+| `merchant_amazon_sellers_live_advanced` | Amazon seller listings for a product |
+| `merchant_amazon_locations` | Location codes for Amazon queries |
+
+## Key Integration Patterns
+
+### Domain Overview
+Combine domain-level signals into a single view:
+1. `dataforseo_labs_google_domain_rank_overview` — traffic, keyword count, ETV, overall ranks
+2. `dataforseo_labs_google_ranked_keywords` — full keyword portfolio with positions
+3. `backlinks_summary` — referring domains, total links, spam score
+4. `dataforseo_labs_google_competitors_domain` — who else competes for the same keyword set
+
+```python
+# Domain overview pipeline
+domain = "example.com"
+location_code = 2840  # US
+language_code = "en"
+
+overview = post("/dataforseo_labs/google/domain_rank_overview/live",
+    [{"target": domain, "location_code": location_code, "language_code": language_code}])
+
+keywords = post("/dataforseo_labs/google/ranked_keywords/live",
+    [{"target": domain, "location_code": location_code, "language_code": language_code, "limit": 1000}])
+
+backlinks = post("/backlinks/summary/live",
+    [{"target": domain, "target_type": "domain"}])
+```
+
+### Keyword Research
+Fan out from a seed term to a full keyword universe:
+1. `dataforseo_labs_google_keyword_ideas` — broad related ideas from a seed list
+2. `dataforseo_labs_google_keyword_suggestions` — completions and variations
+3. `dataforseo_labs_google_related_keywords` — semantically related terms
+4. `dataforseo_labs_search_intent` — classify the intent of each keyword before using them
+5. `dataforseo_labs_bulk_keyword_difficulty` — score difficulty in bulk before prioritising
+
+### Technical URL Audit
+Audit specific URLs without project setup (fully on-demand):
+1. Firecrawl `firecrawl_map` — discover all URLs on the site via crawl
+2. `on_page_instant_pages` — audit discovered URLs in batches (up to 100 per call) for status, canonicals, meta, headings
+3. `on_page_lighthouse` — deep Lighthouse scores for priority URLs (performance, SEO, accessibility)
+
+### Competitive Backlink Analysis
+1. `dataforseo_labs_google_competitors_domain` — find main competitors
+2. `backlinks_domain_intersection` — shared referring domains between target and competitors
+3. `backlinks_competitors` — domains sharing backlink sources with the target (link gap)
+4. `backlinks_timeseries_summary` — trend history to spot link building velocity
+
+### AI Search Share of Voice
+1. `ai_opt_llm_ment_search` — does the brand appear in LLM responses?
+2. `ai_opt_llm_ment_top_domains` — which domains does the LLM cite most for this topic?
+3. `ai_opt_llm_ment_agg_metrics` — share of voice, mention rate, sentiment
+4. `ai_optimization_chat_gpt_scraper` — what does ChatGPT actually say and which sources does it cite?
+
+### SERP Feature & Ranking Research
+1. `serp_locations` — resolve location code for the target market
+2. `serp_organic_live_advanced` — live SERP snapshot with all SERP features, positions, and featured snippets
+3. `dataforseo_labs_google_serp_competitors` — who else appears on this SERP
+
+## Rate Limits
+
+DataForSEO rate limits vary by endpoint and plan tier. General guidance:
+
+- **Default concurrency:** process requests sequentially or in small batches (≤3 concurrent). Do not fan out hundreds of parallel calls.
+- **Batch endpoints:** prefer bulk tools (`backlinks_bulk_ranks`, `dataforseo_labs_bulk_keyword_difficulty`, `on_page_instant_pages` with multiple URLs) over per-URL loops.
+- **429 handling:** exponential backoff with jitter — 1s → 2s → 4s → 8s (±20% jitter). Retry up to 5 times.
+- **5xx handling:** same backoff as 429. Treat 2-consecutive 5xx as a likely transient outage; wait 30s before resuming.
+- **No project management:** DataForSEO has no project-based rank tracking or audit scheduling via MCP. All analysis is on-demand. For recurring workflows, schedule the tool calls externally (cron, n8n, Make).
+
+```python
+import time, random
+
+def call_with_retry(fn, *args, max_retries=5, **kwargs):
+    delay = 1.0
+    for attempt in range(max_retries):
+        try:
+            return fn(*args, **kwargs)
+        except RateLimitError:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(delay + random.uniform(-delay * 0.2, delay * 0.2))
+            delay = min(delay * 2, 60)
+```
 
 ## Process
 
-1. **Preflight.**
-   - Confirm the SE Ranking MCP is reachable. If not, emit:
-     ```bash
-     claude mcp add --transport http se-ranking https://api.seranking.com/mcp
-     ```
-     and stop. See `references/auth-and-keys.md` for OAuth vs. `X-Api-Key` header tradeoffs and headless / CI patterns.
-   - Call `DATA_getSubscription` (0 credits). Record `units_left`, plan status, expiration — `units_left` is the figure to forecast against, and it gets printed in the cost forecast in step 5. Optionally also call `DATA_getCreditBalance` for its `{ limit, used }` view — but the two are **not** aliases: they report different remaining-credit numbers that do not reconcile (an ~8.6M gap is normal), so treat `getSubscription.units_left` as the source of truth.
-
-2. **Clarify the goal.** Ask 1–3 questions only if the goal is ambiguous. Skip when the user already spelled it out. Useful follow-ups:
-   - "Is this a one-off run, a recurring job (daily/weekly), or a long-lived integration in your product?"
+1. **Clarify the goal.** Ask 1–3 questions only if the goal is ambiguous. Skip when the user already spelled it out. Useful follow-ups:
+   - "Is this a one-off run, a recurring job (daily/weekly), or a long-lived integration?"
    - "Target country / language / device — or worldwide?"
-   - "Are we operating on a project you already own in SE Ranking, or just researching domains?"
+   - "Which domains or keywords are the starting point?"
 
-3. **Identify the API surface(s).** Map the goal to one or both of:
-   - **Data API** — research-shaped data on any domain, no prior account setup. Credit-billed. See `references/api-surface-map.md` § "Data API surfaces".
-   - **Project API** — operations on the user's own SE Ranking projects (rank tracking, audits, AIRT, backlink groups, marketing plan, sub-accounts). Subscription-limit-billed, not credit-billed. Requires Business or Enterprise plan. See `references/api-surface-map.md` § "Project API surfaces".
-   - Many real integrations span both — e.g., a rank-tracker setup uses `PROJECT_createProject` + `PROJECT_addKeywords` + `PROJECT_runPositionCheck`, then reports use `DATA_getDomainKeywords` for the same domain.
+2. **Map goal to tools.** Identify the tool sequence from the surface map above. For every step, note:
+   - The MCP tool name.
+   - The underlying REST endpoint (e.g., `POST /v3/dataforseo_labs/google/ranked_keywords/live`).
+   - Key required parameters: `target`, `location_code`, `language_code`, `limit`.
+   - Whether a prerequisite lookup is needed (e.g., `serp_locations` to resolve a location code by name).
 
-4. **Map to tools / endpoints.** For every step in the integration, name:
-   - The MCP tool: `` `DATA_getDomainKeywords` `` or `` `PROJECT_addKeywords` ``.
-   - The underlying REST endpoint + HTTP verb (e.g., `GET /v1/domain/keywords`).
-   - The credit cost (Data API) or limit consumed (Project API). Source costs from `references/rate-limits-and-credits.md` and the per-endpoint pages at `seranking.com/api/data/*` — MCP tool `description` fields carry input schemas and usage notes but **not** credit costs.
-   - If a tool needs an ID the user didn't supply (project ID, search engine ID, geo region name, language code), insert the prerequisite `*list*` or `*available*` call before it. See `references/api-surface-map.md` § "ID resolution".
+3. **Pick execution mode.** Confirm with the user:
+   - **Code mode** — emit ready-to-paste cURL, Python, TypeScript, and MCP-tool-call variants. Default for recurring jobs and anything the developer wants to own.
+   - **Live mode** — run the tool calls now and return the data. Default for one-off research questions in the conversation.
+   - **Hybrid** — run a quick live lookup (e.g., resolve location codes, confirm the domain has data), then emit code for the full workflow.
 
-5. **Forecast cost.** Sum credit cost across all Data API calls. For Project API calls, surface plan-limit impact (e.g., "this consumes 1 Site + 50 Keywords + ~500 Audit Pages from your plan"). Compare against:
-   - `units_left` from step 1 — if insufficient, surface and stop with the upgrade link.
-   - Plan limits if Project API tools are involved — `PROJECT_getUserProfile` returns current usage; flag if the integration would push a limit over.
-
-6. **Pick execution mode.** Confirm with the user explicitly:
-   - **Code mode** — emit ready-to-paste cURL, Python (`requests`), TypeScript (`fetch`), and MCP-tool-call variants. The developer runs them. Default for read-only research, recurring jobs the user wants to own, and anything they want to deploy outside their Claude session.
-   - **Live mode** — execute the integration step by step via MCP. Confirm every mutating call. Default for one-off Project API setup (new project, add keywords, configure audit, set up AIRT prompt group, etc.) where the user wants the state to exist by the end of this conversation.
-   - **Hybrid** — wire up the one-time setup live, emit code for the recurring workload (e.g., "I created the project and added the 50 keywords for you; here's the daily-run Python script to pull positions and write them to BigQuery").
-
-7. **Execute or emit.**
-   - **Code mode** — write `code/curl.sh`, `code/python.py`, `code/typescript.ts`, `code/mcp-calls.md`. Each file is a complete runnable example, not a fragment. Include error handling for `429` (rate limit) and `403` (insufficient credits). See `references/integration-patterns.md` for canonical pattern snippets.
-   - **Live mode** — for each *mutating* call (`PROJECT_create*`, `PROJECT_add*`, `PROJECT_delete*`, `PROJECT_update*`, `DATA_createStandardAudit`, `DATA_createAdvancedAudit`, etc.), print a single-line confirmation:
-     ```
-     About to call PROJECT_createProject(domain="acme.com", name="ACME Inc — Rank Tracker", country="us").
-     Consumes: 1 "Site" from your subscription. Proceed? [y/N]
-     ```
-     Wait for explicit `y` / `yes`. On anything else, fall back to code mode and emit the equivalent code instead of executing. Read-only calls (`DATA_get*`, `DATA_list*`, `PROJECT_get*`, `PROJECT_list*`) run without confirmation. Log every call to `evidence/03-execution-log.md` with timestamp, args, response status.
-
-8. **Synthesise `RECIPE.md`.** Always written, regardless of mode. The deliverable a developer reads to understand what was built or how to build it. See output format below.
+4. **Execute or emit** → synthesise `RECIPE.md`.
 
 ## Output format
 
-Folder `seo-api-{slug}-{YYYYMMDD}/` where `{slug}` is a kebab-case summary of the goal (e.g., `acme-rank-tracker`, `bulk-backlinks-bigquery`).
+Folder `seo-api-{slug}-{YYYYMMDD}/` where `{slug}` is a kebab-case summary of the goal.
 
 ```
 seo-api-{slug}-{YYYYMMDD}/
-├── RECIPE.md                       (primary deliverable — what was built or how to build it)
+├── RECIPE.md                       (primary deliverable)
 ├── code/
 │   ├── curl.sh                     (cURL one-liners + multi-step bash)
 │   ├── python.py                   (idiomatic requests-based script)
-│   ├── typescript.ts               (fetch + zod-validated responses)
-│   └── mcp-calls.md                (MCP-tool-call sequence — same workflow, agent-native)
+│   ├── typescript.ts               (fetch-based script)
+│   └── mcp-calls.md                (MCP-tool-call sequence)
 └── evidence/
-    ├── 01-preflight.md             (credit balance, subscription status, MCP connectivity check)
-    ├── 02-cost-forecast.md         (per-call cost breakdown, plan-limit deltas, total)
-    ├── 03-ids-resolved.md          (Project API / search-engine IDs, geo codes resolved upfront — omit if none needed)
-    └── 04-execution-log.md         (every MCP call executed, with args + status — omit in pure code mode where nothing ran)
+    ├── 01-preflight.md             (MCP connectivity check, location/language codes resolved)
+    └── 02-execution-log.md         (every tool call run in live mode, with args + status — omit in pure code mode)
 ```
-
-Top-level: `RECIPE.md` + `code/`. The `evidence/` folder preserves the reasoning trail; auditors lean on `02-cost-forecast.md` and the execution log. `03` and `04` are conditional — a run with no ID lookups and no executed calls (pure code-mode advice) ships just `01` + `02`.
 
 `RECIPE.md` follows this shape:
 
 ```markdown
 # {Integration Title}: {target}
 
-> Run dated {YYYY-MM-DD} · Mode: {code | live | hybrid} · Total cost: {n} credits + {plan-limits consumed}
+> Run dated {YYYY-MM-DD} · Mode: {code | live | hybrid}
 
 ## Goal
 
 {1–2 sentences. What was asked, what's being shipped.}
 
-## API surface map
+## Tool map
 
-| Step | MCP tool | REST endpoint | Verb | Cost |
-|------|----------|---------------|------|------|
-| 1    | `DATA_getCreditBalance` | `/v1/account/subscription` | GET | 0 credits |
-| 2    | `PROJECT_listProjects` | `/v1/account/projects` | GET | 0 (plan limit: read) |
-| 3    | `PROJECT_createProject` | `/v1/projects` | POST | 1 Site from plan |
-| ...  | ... | ... | ... | ... |
+| Step | MCP tool | REST endpoint | Key parameters |
+|------|----------|---------------|----------------|
+| 1    | `dataforseo_labs_google_domain_rank_overview` | `POST /v3/dataforseo_labs/google/domain_rank_overview/live` | target, location_code, language_code |
+| ...  | ... | ... | ... |
 
 ## Auth & setup
 
-{cURL header / Python session / TypeScript fetch wrapper showing exactly how to authenticate. Reference `references/auth-and-keys.md` for OAuth vs. header tradeoffs.}
-
-## Cost forecast
-
-- Credit cost (Data API): {n} credits ({explanation per call})
-- Plan-limit consumption (Project API): {Sites: n, Keywords: n, Audit Pages: n, AIRT Prompts: n}
-- Your balance at run time: {units_left} credits, {plan limits available}
-- {OK / WARNING: this integration would push X over plan limit}
+{Show the Basic Auth pattern for cURL / Python / TypeScript. Reference the DATAFORSEO_USERNAME / DATAFORSEO_PASSWORD env vars.}
 
 ## Recipe
 
 ### Option A — cURL
-
-(complete bash script in `code/curl.sh`)
+(see `code/curl.sh`)
 
 ### Option B — Python
-
-(complete script in `code/python.py`)
+(see `code/python.py`)
 
 ### Option C — TypeScript
-
-(complete script in `code/typescript.ts`)
+(see `code/typescript.ts`)
 
 ### Option D — MCP tool calls
-
-(agent-native sequence in `code/mcp-calls.md` — for when this integration lives inside another Claude/Cursor/Codex workflow)
+(see `code/mcp-calls.md`)
 
 ## Rate limit & retry strategy
 
-- Data API: 10 RPS, Project API: 5 RPS. Pace sequentially for batched workflows; small-batch parallelism (≤3 concurrent) is safe.
-- 429 handling: exponential backoff with jitter (1s → 2s → 4s → 8s, ±20% jitter). 5xx: same. Treat 403 "Insufficient funds" as terminal — no retry.
-
-## What's running now (live mode only)
-
-{Bullet list of MCP calls that were executed, with their outcomes. Pulled from `evidence/04-execution-log.md`.}
+- Batch where possible using bulk endpoints.
+- 429: exponential backoff (1s → 2s → 4s → 8s ±20% jitter), max 5 retries.
+- 5xx: same backoff. Two consecutive 5xx → pause 30s.
+- No project management via MCP — schedule recurring runs externally.
 
 ## What you still need to do
 
-{Concrete next steps for the developer. E.g., "Run `python.py` daily via cron at 06:00 UTC", "Open the project at https://online.seranking.com/...", "Add a webhook for rank changes via Settings → Notifications".}
-
-## Linked docs
-
-- {Direct links to the relevant pages on `seranking.com/api/data/*` and `seranking.com/api/project/*`.}
+{Concrete next steps. E.g., "Run python.py daily via cron at 06:00 UTC", "Store results in your data warehouse", "Wire the output into your reporting dashboard".}
 
 ## When to escalate to another skill
 
-- `seo-content-brief` — once your integration is pulling keyword data, this skill turns it into editor briefs.
-- `seo-technical-audit` — if the integration involves website audits, this skill interprets the audit output.
-- `seo-drift baseline` — if the integration's job is to track a domain over time, snapshot it first.
+- `seo-content-brief` — turn keyword research into editor briefs.
+- `seo-page` — evaluate a specific URL.
+- `seo-drift baseline` — snapshot a domain before the integration starts running.
+- `seo-technical-audit` — interpret on-page audit output.
+- `seo-ai-search-share-of-voice` — competitive read on LLM visibility.
 ```
 
 ## Tips
 
-- **Single API key authenticates everything.** `API_TOKEN` (or `X-Api-Key` header for headless) covers both `DATA_*` and `PROJECT_*`. The legacy split into separate Data and Project keys is gone — passing both still works as headers for backwards compatibility, but you can use just `X-Api-Key` now. See `references/auth-and-keys.md`.
-- **Rate limits are per-API-key, not per-IP.** All threads / workers / servers sharing one key contribute to the same 10-RPS (Data) or 5-RPS (Project) budget. For production fan-outs, mint multiple keys via the API Dashboard.
-- **Failed requests are free.** 4xx and 5xx never consume credits. Don't over-engineer cost protection for normal error retries.
-- **Project API limits are not credits.** They consume your subscription's "Sites", "Keywords", "Audit Pages", "AIRT Prompts" quotas. Surface plan-limit impact upfront for any mutating call — these limits are stickier than credits because the user has to upgrade their plan to lift them, not just buy a credit pack.
-- **Confirm before mutating.** `PROJECT_create*`, `PROJECT_add*`, `PROJECT_delete*`, `PROJECT_update*`, `DATA_create*Audit`, `DATA_deleteAudit` all permanently modify account state. Always print a one-line summary (tool, args, what gets consumed) and wait for `y`/`yes` before calling.
-- **Use the right ID resolution tool.** Most "I want to operate on project X / keyword Y" requests need an ID lookup first. See `references/api-surface-map.md` § "ID resolution" for the full table. Common cases:
-  - Project IDs → `PROJECT_listProjects` (or `PROJECT_listOwnedProjects` / `PROJECT_listSharedProjects` for sub-account setups).
-  - Search engine for rank tracking → pass `country_code` directly to `PROJECT_addSearchEngine` (ISO 3166-1 alpha-2). Only fall back to `PROJECT_getAvailableSearchEngines` for regional engines (Catalonia, Turkish-Cypriot Cyprus).
-  - SERP locations → `DATA_getSerpLocations`.
-  - Languages → `PROJECT_getGoogleLanguages`.
-  - Regions for local rank tracking → `PROJECT_getAvailableRegions` (use the verbatim `name` field; abbreviations are rejected).
-- **For exports, poll the status endpoint.** Async endpoints (`/backlinks/export`, `/keywords/export`) return a task ID; subsequent polls of `*ExportStatus` count against the rate limit but cost 0 credits. Start with a 5s poll interval; exponential backoff if the task is large.
-- **Check the MCP tool description before WebFetching docs.** Every MCP tool exposes its full input schema, defaults, and usage notes via the protocol — e.g. `DATA_getDomainCompetitors` documents its own ~60KB response cap. One thing the descriptions do *not* carry: credit costs — for those, use `references/rate-limits-and-credits.md` and the public per-endpoint pages.
-- **Large list endpoints can overflow the MCP transport.** `DATA_getDomainCompetitors` on a popular domain — and `DATA_getDomainKeywords` / `DATA_getAllBacklinks` on big domains — return responses past the MCP client's inline token limit; the result is auto-saved to a file instead. Recover it with a `jq` slice on the saved file, or call the REST endpoint directly (raw REST has no size cap). See `references/api-surface-map.md`.
-- **For "show me Swagger / OpenAPI for the MCP"** — point the developer at MCP Inspector (`npx @modelcontextprotocol/inspector https://api.seranking.com/mcp`) or `mcp-scan`. Both walk the live tool/prompt/resource catalogue. A canonical MCP→OpenAPI converter is on the roadmap; for now the inspector output is the source of truth.
+- **No project setup required.** Every DataForSEO tool works on-demand against any domain or keyword — there is no concept of "creating a project" or "registering a domain" before querying.
+- **location_code is required for most Labs and SERP tools.** Use `serp_locations` or `kw_data_google_ads_locations` to resolve a country name to its integer code (e.g., US = 2840). Hardcode common codes in your scripts; don't look them up on every run.
+- **language_code is usually a two-letter string** (e.g., `"en"`, `"de"`, `"fr"`). Check tool schemas for the exact format — a few endpoints use `language_name` instead.
+- **Bulk over loops.** `on_page_instant_pages` accepts up to 100 URLs per call. `backlinks_bulk_ranks` accepts up to 1000 domains. Always batch rather than issuing one call per item.
+- **Failed requests don't consume credits** on most DataForSEO endpoints. Don't over-engineer retry logic for 4xx responses from bad input — fix the input instead.
+- **Large result sets.** For `dataforseo_labs_google_ranked_keywords` on high-traffic domains, the full keyword list can be thousands of rows. Use `limit` and `offset` for pagination, or use the async task endpoints (POST task, GET result) for very large exports.
+- **MCP tool descriptions carry the input schema.** Check the tool description for required vs. optional fields before calling. The descriptions do not carry per-call pricing — consult `docs.dataforseo.com` for cost details.
+- **WebFetch for deep docs.** If a tool's schema alone doesn't answer the question (e.g., "what does `ranked_serp_element` mean in the response?"), fetch `https://docs.dataforseo.com/v3/dataforseo_labs/google/ranked_keywords/live/` for the full response schema with field descriptions.
 
 ## Works well with
 
-- **Predecessors:** none — entry point for any API integration question.
+- **Predecessors:** none — entry point for any DataForSEO integration question.
 - **Successors (when the integration starts producing data):**
-  - `seo-content-brief` — when the integration pulls keyword research that should become editor briefs.
-  - `seo-page` — when one URL from the integration needs a keep/refresh/consolidate/kill verdict.
-  - `seo-drift baseline` — to snapshot a domain or URL before the integration starts running, so regressions are detectable.
-  - `seo-technical-audit` — when the integration involves audit runs and the output needs prioritisation.
-  - `seo-ai-search-share-of-voice` — when the integration tracks AIRT visibility and needs a competitive read.
-
-## References
-
-- `references/auth-and-keys.md` — API key formats, OAuth vs. header, headless / CI patterns, key rotation.
-- `references/rate-limits-and-credits.md` — 10 RPS / 5 RPS, credit billing models, plan-limit consumption, error codes (429, 403), exponential-backoff template.
-- `references/api-surface-map.md` — full routing table (which API owns what) + ID resolution table + decision tree for "which tool do I need".
-- `references/integration-patterns.md` — five canonical recipes copy-paste-ready: rank tracker setup, bulk backlink export, audit pipeline, AIRT visibility tracker, keyword research bulk job.
+  - `seo-content-brief` — keyword data → editor briefs.
+  - `seo-page` — individual URL analysis and keep/refresh/consolidate/kill decisions.
+  - `seo-drift baseline` — snapshot before the integration starts, so regressions are detectable.
+  - `seo-technical-audit` — interpret on-page audit findings.
+  - `seo-ai-search-share-of-voice` — LLM visibility and competitive AI search analysis.

@@ -1,25 +1,30 @@
 {
   "name": "seo-skills",
-  "description": "Claude SEO Skills for the SE Ranking MCP server. Turns raw API data into finished deliverables across keyword research, content briefing, page intelligence, technical and content audits, structured data, drift monitoring, SXO diagnostics, competitive analysis, paid search, AI-search optimization, sitemap analysis, subdomain mapping, content opportunity mining, strategic roadmap planning, Google APIs (GSC, PSI, CrUX, Indexing, GA4, YouTube, NLP), and SE Ranking API integration recipes (Data API + Project API).",
-  "version": "2.10.3",
+  "description": "Claude SEO Skills for the DataForSEO MCP server. Turns raw API data into finished deliverables across keyword research, content briefing, page intelligence, technical and content audits, structured data, drift monitoring, SXO diagnostics, competitive analysis, paid search, AI-search optimization, sitemap analysis, subdomain mapping, content opportunity mining, strategic roadmap planning, Google APIs (GSC, PSI, CrUX, Indexing, GA4, YouTube, NLP), and DataForSEO API integration recipes.",
+  "version": "3.0.0",
   "author": {
-    "name": "SE Ranking",
-    "email": "api@seranking.com",
-    "url": "https://seranking.com"
+    "name": "DonnaPro",
+    "email": "zoran@donnapro.com",
+    "url": "https://donnapro.com"
   },
-  "homepage": "https://github.com/seranking/seo-skills",
-  "repository": "https://github.com/seranking/seo-skills",
+  "homepage": "https://github.com/DonnaPro/d4s",
+  "repository": "https://github.com/DonnaPro/d4s",
   "license": "MIT",
   "mcpServers": {
-    "se-ranking": {
-      "type": "http",
-      "url": "https://api.seranking.com/mcp"
+    "dataforseo": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "dataforseo-mcp-server"],
+      "env": {
+        "DATAFORSEO_USERNAME": "${DATAFORSEO_USERNAME}",
+        "DATAFORSEO_PASSWORD": "${DATAFORSEO_PASSWORD}"
+      }
     }
   },
   "keywords": [
     "seo",
     "mcp",
-    "se-ranking",
+    "dataforseo",
     "claude",
     "claude-code",
     "claude-skills",
@@ -29,6 +34,7 @@
     "ai-search",
     "keyword-research",
     "backlinks",
-    "site-audit"
+    "site-audit",
+    "donnapro"
   ]
 }

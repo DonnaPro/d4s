@@ -1,235 +1,86 @@
 # Integration Patterns
 
-Five canonical recipes the `seo-api` skill draws from. Each one is ready to paste — the skill adapts variable names, target domains, and credentials but doesn't need to re-derive the shape.
+Five canonical recipes the `seo-api` skill draws from. Each one is ready to adapt — the skill adjusts variable names, target domains, and credentials but doesn't need to re-derive the shape.
 
-## Pattern 1 — Rank tracker setup (Project API)
+## Pattern 1 — Domain competitive overview
 
-**Goal:** stand up a new project, add a search engine, add 50 keywords, run the first position check.
+**Goal:** Pull organic performance, top keywords, and direct competitors for any domain in one workflow.
 
-**Surfaces used:** Project API.
-**Plan cost:** 1 Site + 50 Keywords from the user's subscription.
-**Credits:** 0 (Project API).
+**Tools used:** DataForSEO Labs.
+**Credits:** Low — a few hundred credits total.
 
 ### MCP-tool-call sequence
 
 ```text
-1. PROJECT_listProjects             // confirm the project doesn't already exist
-2. PROJECT_createProject            // domain="acme.com", name="ACME Rank Tracker"
-3. PROJECT_addSearchEngine          // project_id=<from #2>, country_code="us"
-4. PROJECT_addKeywords              // project_id=<from #2>, keywords=[...50 strings]
-5. PROJECT_runPositionCheck         // project_id=<from #2>
-6. PROJECT_getPositionHistory       // project_id=<from #2>  (poll until ready)
-```
-
-### Python equivalent
-
-```python
-import os, time, requests
-
-API_KEY = os.environ["SERANKING_API_KEY"]
-HEADERS = {"Authorization": f"Token {API_KEY}", "Content-Type": "application/json"}
-BASE = "https://api.seranking.com/v1"
-
-DOMAIN = "acme.com"
-NAME = "ACME Rank Tracker"
-COUNTRY = "us"
-KEYWORDS = ["seo software", "rank tracker", ...]  # 50 total
-
-project = requests.post(f"{BASE}/projects", json={"domain": DOMAIN, "name": NAME}, headers=HEADERS).json()
-project_id = project["id"]
-
-requests.post(f"{BASE}/projects/{project_id}/search-engines", json={"country_code": COUNTRY}, headers=HEADERS)
-
-requests.post(
-    f"{BASE}/projects/{project_id}/keywords",
-    json={"keywords": KEYWORDS},
-    headers=HEADERS,
-)
-
-requests.post(f"{BASE}/projects/{project_id}/positions/check", headers=HEADERS)
-
-# Position checks are async — poll
-for _ in range(20):
-    r = requests.get(f"{BASE}/projects/{project_id}/positions/history", headers=HEADERS)
-    if r.json().get("ready"):
-        positions = r.json()
-        break
-    time.sleep(15)
-```
-
-### When to use
-
-User says: "set up rank tracking for X", "create a new project for client Y", "I want to monitor positions for these keywords".
-
-### Variants
-
-- **Local rank tracking.** Add a region: call `PROJECT_getAvailableRegions` first, then pass `region_name` (verbatim from the response, no abbreviations) to `PROJECT_addSearchEngine`.
-- **Multiple search engines.** Loop `PROJECT_addSearchEngine` per `country_code`. Each one is independent — rank checks run in parallel.
-- **Tagged keyword groups.** After `PROJECT_addKeywords`, use `PROJECT_createKeywordGroup` + `PROJECT_moveKeywordsToGroup` to organise.
-
-## Pattern 2 — Bulk backlink export to BigQuery / S3 (Data API)
-
-**Goal:** pull every backlink for a list of 250 domains and ship the rows to BigQuery for analysis.
-
-**Surfaces used:** Data API only.
-**Credits:** ~75,000 (25,000 for 250 summaries + 50,000 for one full domain export; multi-domain exports scale linearly).
-**Plan cost:** 0.
-
-### Sequence
-
-```text
-1. DATA_getCreditBalance                    // confirm budget
-2. for each domain:
-     DATA_getBacklinksSummary               // 100 credits / domain
-3. DATA_exportBacklinksData                 // 1 credit per backlink record returned (per domain)
-4. DATA_getBacklinksExportStatus            // 0 credits / call; poll
-5. (when ready) fetch the result URL        // 0 credits
+1. dataforseo_labs_google_domain_rank_overview   // traffic, KW count, organic metrics
+2. dataforseo_labs_google_ranked_keywords        // top ranking keywords (page 1)
+3. dataforseo_labs_google_competitors_domain     // top competing domains
+4. dataforseo_labs_google_domain_intersection    // keyword overlap with top competitor
 ```
 
 ### Python skeleton
 
 ```python
-import requests, time, json
-from google.cloud import bigquery
+import os, requests, base64
 
-DOMAINS = [...]  # 250 entries
+USERNAME = os.environ["DATAFORSEO_USERNAME"]
+PASSWORD = os.environ["DATAFORSEO_PASSWORD"]
+CREDS = base64.b64encode(f"{USERNAME}:{PASSWORD}".encode()).decode()
+HEADERS = {"Authorization": f"Basic {CREDS}", "Content-Type": "application/json"}
+BASE = "https://api.dataforseo.com/v3"
 
-bq = bigquery.Client()
-table = bq.dataset("seo").table("backlinks")
+DOMAIN = "acme.com"
+LOCATION = 2840  # United States
+LANGUAGE = "en"
 
-for domain in DOMAINS:
-    summary = client.get("/backlinks/summary", params={"target": domain}).json()
-    bq.insert_rows_json(table, [summary])
+def post(path, payload):
+    r = requests.post(f"{BASE}{path}", json=payload, headers=HEADERS)
+    r.raise_for_status()
+    return r.json()["tasks"][0]["result"]
 
-    task = client.post("/backlinks/export", json={"target": domain}).json()
-    task_id = task["task_id"]
+overview = post("/dataforseo_labs/google/domain_rank_overview/live", [
+    {"target": DOMAIN, "location_code": LOCATION, "language_code": LANGUAGE}
+])
 
-    while True:
-        status = client.get(f"/backlinks/export/status", params={"task_id": task_id}).json()
-        if status["status"] == "done":
-            rows = requests.get(status["result_url"]).json()
-            bq.insert_rows_json(table, rows)
-            break
-        time.sleep(15)
-```
+keywords = post("/dataforseo_labs/google/ranked_keywords/live", [
+    {"target": DOMAIN, "location_code": LOCATION, "language_code": LANGUAGE, "limit": 100}
+])
 
-(See `references/rate-limits-and-credits.md` for the `client` wrapper — it handles 429 + 403 + throttling.)
-
-### When to use
-
-User says: "export all backlinks for X", "ship backlinks to {warehouse}", "I need a daily/weekly backlink delta job".
-
-### Variants
-
-- **Incremental (delta) export.** Use `DATA_listNewLostBacklinks` instead of full export — much cheaper for daily jobs.
-- **Filter at request time.** Pass `min_authority`, `dofollow_only`, `anchor_contains` to reduce both data volume and credit cost.
-- **For ref domains instead of links.** Same shape with `DATA_getBacklinksRefDomains` → `DATA_listNewLostReferringDomains`.
-
-## Pattern 3 — Audit pipeline (Project API + Data API hybrid)
-
-**Goal:** stand up an ongoing audit for a project, then pull the latest report into a Slack alert.
-
-**Surfaces used:** both.
-**Credits:** 0 (audit lives on Project API).
-**Plan cost:** Audit Pages quota (depends on crawl scope).
-
-### Sequence
-
-```text
-1. PROJECT_listProjects                    // resolve project_id
-2. PROJECT_getAuditSettings                // confirm current crawl scope
-3. PROJECT_updateAuditSettings             // optional — tune scope
-4. PROJECT_createAudit                     // kicks off crawl
-5. PROJECT_getAuditStatus                  // poll until "completed"
-6. PROJECT_getAuditReport                  // top-level summary
-7. PROJECT_getIssuesByUrl                  // per-URL issue list
-8. (optional) DATA_getDomainAuthority      // contextual signal for severity ranking
-9. Slack webhook                            // emit alert
-```
-
-### Slack-alert TS skeleton
-
-```typescript
-const project = (await client.get(`/projects/list`)).find(p => p.domain === DOMAIN);
-
-await client.post(`/projects/${project.id}/audits/create`);
-
-let status = "pending";
-while (status !== "completed") {
-  await sleep(60_000);
-  status = (await client.get(`/projects/${project.id}/audits/status`)).status;
-}
-
-const report = await client.get(`/projects/${project.id}/audits/report`);
-const critical = report.issues.filter(i => i.severity === "critical");
-
-if (critical.length > 0) {
-  await fetch(SLACK_WEBHOOK, {
-    method: "POST",
-    body: JSON.stringify({
-      text: `⚠️ ${critical.length} critical SEO issues on ${DOMAIN}:\n${critical.map(i => `- ${i.title}`).join("\n")}`,
-    }),
-  });
-}
+competitors = post("/dataforseo_labs/google/competitors_domain/live", [
+    {"target": DOMAIN, "location_code": LOCATION, "language_code": LANGUAGE, "limit": 20}
+])
 ```
 
 ### When to use
 
-User says: "set up site auditing for X", "alert me when audit issues appear", "build an audit pipeline".
+User says: "research domain X", "give me an overview of competitor Y", "what keywords does acme.com rank for".
 
 ### Variants
 
-- **One-off audit (no project).** Use `DATA_createStandardAudit` / `DATA_createAdvancedAudit` instead — fits when there's no Project API access or no need for ongoing tracking.
-- **Compare against last week.** Hold the previous `audit_id`; diff `PROJECT_getAuditReport` summaries to detect new/resolved issues.
+- **Historical view.** Add `dataforseo_labs_google_historical_rank_overview` to show traffic/keyword trends over time.
+- **Page-level breakdown.** Use `dataforseo_labs_google_relevant_pages` to see which pages drive the most traffic.
+- **Subdomain split.** Use `dataforseo_labs_google_subdomains` for large sites with significant subdomain traffic.
 
-## Pattern 4 — AIRT visibility tracker (Project API)
+---
 
-**Goal:** track how often a brand appears in answers across ChatGPT / Gemini / Perplexity for a curated prompt set.
+## Pattern 2 — Keyword research and clustering
 
-**Surfaces used:** Project API (with optional `DATA_getAiSearch*` for cross-domain comparison).
-**Credits:** 0 (AIRT is plan-billed).
-**Plan cost:** N AIRT Prompts from subscription.
+**Goal:** Expand a set of seed keywords into a large list, score KD, get search volumes, classify by intent.
 
-### Sequence
-
-```text
-1. PROJECT_listProjects                  // resolve project_id
-2. PROJECT_listLlmEngines                // confirm engines available
-3. (optional) PROJECT_createLlmEngine    // if a custom engine is needed
-4. PROJECT_createPromptGroup             // group the prompts logically
-5. PROJECT_addPrompts                    // attach 20–50 prompts
-6. PROJECT_getLlmStatus                  // poll — answers refresh on a schedule
-7. PROJECT_getPromptAnswer (per prompt)   // current top-N answers
-8. PROJECT_getPromptsRankings             // brand mention positions across the group
-```
-
-### When to use
-
-User says: "track brand mentions in LLMs", "AIRT setup", "AI Result Tracker prompts for X", "build LLM visibility dashboard".
-
-### Variants
-
-- **Cross-domain competitive view.** Pair with `DATA_getAiSearchLeaderboard` + `DATA_getAiSearchOverview` for a benchmark against domains you don't own.
-- **Per-engine breakdown.** Call `PROJECT_getLlmStatistics` filtered by engine_id for an engine-by-engine heatmap.
-
-## Pattern 5 — Keyword research bulk job (Data API)
-
-**Goal:** for a list of seed keywords, expand each into related / similar / longtail / question keywords, write the merged result to a CSV.
-
-**Surfaces used:** Data API only.
-**Credits:** ~1–5 per keyword expanded (varies by tool).
-**Plan cost:** 0.
+**Tools used:** DataForSEO Labs + Keyword Data.
+**Credits:** Moderate — scales with keyword count.
 
 ### Sequence
 
 ```text
 for each seed:
-  DATA_getRelatedKeywords
-  DATA_getSimilarKeywords
-  DATA_getLongTailKeywords
-  DATA_getKeywordQuestions
-merge + dedupe
-write to CSV
+  dataforseo_labs_google_keyword_ideas          // broad expansion
+  dataforseo_labs_google_related_keywords       // semantic relatives
+  dataforseo_labs_google_keyword_suggestions    // autocomplete-based
+
+dataforseo_labs_bulk_keyword_difficulty         // batch KD for the full merged list
+kw_data_google_ads_search_volume               // accurate monthly volume
+dataforseo_labs_search_intent                  // classify by intent
 ```
 
 ### Python skeleton
@@ -237,37 +88,210 @@ write to CSV
 ```python
 import csv, itertools
 
-SEEDS = [...]  # e.g., 20 seed keywords
-COUNTRY = "us"
+SEEDS = ["seo software", "rank tracker", "keyword research tool"]
+LOCATION = 2840
+LANGUAGE = "en"
 
-rows = []
+all_keywords = []
+
 for seed in SEEDS:
-    rel = client.get("/keywords/related", params={"keyword": seed, "source": COUNTRY}).json()
-    sim = client.get("/keywords/similar", params={"keyword": seed, "source": COUNTRY}).json()
-    long = client.get("/keywords/longtail", params={"keyword": seed, "source": COUNTRY}).json()
-    qst = client.get("/keywords/questions", params={"keyword": seed, "source": COUNTRY}).json()
+    ideas = post("/dataforseo_labs/google/keyword_ideas/live", [
+        {"keyword": seed, "location_code": LOCATION, "language_code": LANGUAGE, "limit": 200}
+    ])
+    related = post("/dataforseo_labs/google/related_keywords/live", [
+        {"keyword": seed, "location_code": LOCATION, "language_code": LANGUAGE}
+    ])
+    all_keywords.extend(ideas or [])
+    all_keywords.extend(related or [])
 
-    for kw in itertools.chain(rel, sim, long, qst):
-        rows.append({**kw, "source_seed": seed})
+# Dedupe
+unique_kws = list({item["keyword"]: item for item in all_keywords}.values())
+kw_strings = [item["keyword"] for item in unique_kws]
 
-# Dedupe by keyword
-unique = {row["keyword"]: row for row in rows}.values()
+# Batch KD (up to 1000 per call)
+kd_results = post("/dataforseo_labs/google/bulk_keyword_difficulty/live", [
+    {"keywords": kw_strings[:1000], "location_code": LOCATION, "language_code": LANGUAGE}
+])
 
+# Write CSV
 with open("keywords.csv", "w", newline="") as f:
-    writer = csv.DictWriter(f, fieldnames=["keyword", "volume", "kd", "intent", "source_seed"])
+    writer = csv.DictWriter(f, fieldnames=["keyword", "search_volume", "keyword_difficulty", "intent"])
     writer.writeheader()
-    writer.writerows(unique)
+    writer.writerows(unique_kws)
 ```
 
 ### When to use
 
-User says: "expand these seeds", "bulk keyword research", "build a keyword list for X", "I have 20 seeds, give me 2000 keywords".
+User says: "expand these seeds", "build a keyword list for X", "I need 2000 keywords from 20 seeds", "what should we target for Y topic".
 
 ### Variants
 
-- **By intent.** Filter on `intent` in the response: keep only `informational` + `commercial` for content briefs.
-- **By KD ceiling.** Filter `kd <= 30` for new domains to skip the impossible-to-rank keywords.
-- **Cluster after expansion.** Pipe the merged CSV into `seo-keyword-cluster` for pillar-and-spoke structure.
+- **Filter by KD.** Keep only `keyword_difficulty <= 30` for new domains.
+- **Filter by intent.** Use `dataforseo_labs_search_intent` and keep `informational` + `commercial` for content strategy.
+- **Volume accuracy.** Replace volume from Labs with `kw_data_google_ads_search_volume` for Google Ads-sourced figures.
+
+---
+
+## Pattern 3 — Backlink audit and gap analysis
+
+**Goal:** Audit the backlink profile of a domain, compare against a competitor, find link gap opportunities.
+
+**Tools used:** Backlinks tools.
+**Credits:** Moderate — scales with domain size.
+
+### Sequence
+
+```text
+1. backlinks_summary                          // total links, referring domains, rank, spam score
+2. backlinks_referring_domains                // full referring domain list
+3. backlinks_anchors                          // anchor text distribution
+4. backlinks_timeseries_summary               // backlink growth over time
+5. backlinks_competitors                      // domains with overlapping backlink sources
+6. backlinks_domain_intersection              // shared referring domains with main competitor
+```
+
+### Python skeleton
+
+```python
+MY_DOMAIN = "acme.com"
+COMPETITOR = "rival.com"
+
+summary = post("/backlinks/summary/live", [{"target": MY_DOMAIN, "include_subdomains": True}])
+
+ref_domains = post("/backlinks/referring_domains/live", [
+    {"target": MY_DOMAIN, "limit": 1000, "order_by": ["rank,desc"]}
+])
+
+anchors = post("/backlinks/anchors/live", [
+    {"target": MY_DOMAIN, "limit": 100}
+])
+
+intersection = post("/backlinks/domain_intersection/live", [
+    {
+        "targets": [MY_DOMAIN, COMPETITOR],
+        "exclude_targets": [MY_DOMAIN],  # show only domains linking to competitor but not us
+        "limit": 200
+    }
+])
+```
+
+### When to use
+
+User says: "audit backlinks for X", "compare our links to competitor Y", "find link building opportunities", "check our spam score".
+
+### Variants
+
+- **Spam detection.** Use `backlinks_bulk_spam_score` on the full referring domain list to flag toxic links.
+- **Delta tracking.** Use `backlinks_timeseries_new_lost_summary` to detect sudden drops (penalty signals) or spikes (competitor activity).
+- **Bulk competitor scan.** Use `backlinks_bulk_ranks` to quickly benchmark domain authority for a list of prospects.
+
+---
+
+## Pattern 4 — AI visibility and GEO research
+
+**Goal:** Track how a brand appears in AI engine answers (ChatGPT, etc.) and identify citation opportunities.
+
+**Tools used:** AI Optimization tools.
+**Credits:** Varies — ChatGPT scraper calls are metered per request.
+
+### Sequence
+
+```text
+1. ai_opt_llm_ment_search                    // search for brand mentions across AI engines
+2. ai_opt_llm_ment_agg_metrics               // visibility score, share of voice for a domain
+3. ai_opt_llm_ment_top_domains               // top-cited domains for a topic (competitor benchmark)
+4. ai_opt_llm_ment_top_pages                 // specific pages being cited
+5. ai_optimization_chat_gpt_scraper          // directly test how ChatGPT answers a prompt
+```
+
+### Python skeleton
+
+```python
+BRAND = "acme"
+TOPIC = "seo software"
+
+mentions = post("/dataforseo/ai_optimization/llm_mentions/search/live", [
+    {"keyword": BRAND, "location_code": 2840}
+])
+
+top_domains = post("/dataforseo/ai_optimization/llm_mentions/top_domains/live", [
+    {"keyword": TOPIC, "location_code": 2840, "limit": 20}
+])
+
+# Test a specific prompt in ChatGPT
+chatgpt_result = post("/dataforseo/ai_optimization/chat_gpt/scraper/live", [
+    {"keyword": f"what is the best {TOPIC}", "location_code": 2840}
+])
+```
+
+### When to use
+
+User says: "does our brand appear in ChatGPT?", "which domains get cited for X topic", "track AI visibility", "GEO research for Y keyword", "test AI search answers".
+
+### Variants
+
+- **Cross-engine comparison.** Use `ai_opt_llm_ment_cross_agg_metrics` to compare visibility across multiple LLM engines.
+- **Keyword-level AI volume.** Use `ai_optimization_keyword_data_search_volume` to find keywords with growing AI search volume.
+- **Trend research.** Combine with `kw_data_dfs_trends_explore` to correlate AI citation growth with traditional search trends.
+
+---
+
+## Pattern 5 — On-page audit + Lighthouse for a URL list
+
+**Goal:** Audit a list of URLs for on-page SEO issues and performance scores.
+
+**Tools used:** On-Page tools.
+**Credits:** Per-URL billing; Lighthouse is more expensive than instant_pages.
+
+### Sequence
+
+```text
+for each URL:
+  on_page_instant_pages          // on-page signals (title, meta, h1, links, schema)
+  on_page_lighthouse             // performance + SEO + accessibility scores
+merge results
+output issue summary
+```
+
+### Python skeleton
+
+```python
+URLS = [
+    "https://acme.com/",
+    "https://acme.com/pricing",
+    "https://acme.com/blog/seo-guide",
+]
+
+results = []
+for url in URLS:
+    page_data = post("/on_page/instant_pages/live", [
+        {"url": url, "enable_javascript": True, "load_resources": True}
+    ])
+    lighthouse = post("/on_page/lighthouse/live", [
+        {"url": url, "for_mobile": False}
+    ])
+    results.append({
+        "url": url,
+        "title": page_data[0].get("meta", {}).get("title"),
+        "seo_score": lighthouse[0].get("categories", {}).get("seo", {}).get("score"),
+        "performance_score": lighthouse[0].get("categories", {}).get("performance", {}).get("score"),
+    })
+
+# Print summary
+for r in results:
+    print(f"{r['url']} | SEO: {r['seo_score']} | Perf: {r['performance_score']}")
+```
+
+### When to use
+
+User says: "audit these pages", "check the SEO score for X URL", "run Lighthouse on the site", "find on-page issues for Y".
+
+### Variants
+
+- **Content extraction.** Use `on_page_content_parsing` to extract structured text from URLs for content analysis or ingestion pipelines.
+- **SERP comparison.** Pair with `serp_organic_live_advanced` to compare on-page signals of top-ranking pages vs. the user's page.
+
+---
 
 ## Composing patterns
 
@@ -275,9 +299,10 @@ Real integrations chain these. Common compositions:
 
 | Goal | Patterns chained |
 |---|---|
-| "Weekly client SEO report" | Pattern 1 (one-time setup) → Pattern 3 (recurring audit) + `PROJECT_getPositionHistory` + Pattern 2 trim (delta backlinks) |
-| "Find the highest-value new content opportunities" | Pattern 5 → `seo-keyword-cluster` → `seo-content-brief` |
-| "AI Search competitive intelligence" | Pattern 4 → `seo-ai-search-share-of-voice` |
-| "Outreach prospecting" | Pattern 2 (variant: ref domains) → competitor diff → outreach CSV |
+| "Weekly competitive SEO report" | Pattern 1 (domain overview) + Pattern 3 (backlink delta) + `serp_organic_live_advanced` for key money keywords |
+| "Content strategy for a new topic" | Pattern 2 (keyword research) → intent filter → `content_analysis_summary` for topical coverage gaps |
+| "AI search competitive intelligence" | Pattern 4 (brand mentions + top domains) → content gap from top-cited pages |
+| "Full site audit before launch" | Pattern 5 (per-URL audit) + `on_page_content_parsing` for all pages |
+| "Link building prospecting" | Pattern 3 (intersection with competitor) → filter by domain rank → outreach CSV |
 
-When the user's goal spans more than one pattern, the `seo-api` skill writes them all as numbered sections inside `RECIPE.md` and emits separate `code/` files per language for the combined flow.
+When the user's goal spans more than one pattern, the `seo-api` skill writes them all as numbered sections and emits separate code files per language for the combined flow.

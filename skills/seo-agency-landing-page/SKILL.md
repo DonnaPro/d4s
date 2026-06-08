@@ -11,12 +11,12 @@ Produce a production-ready landing page for an SEO agency offering a free audit 
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - User provides: (a) agency name, (b) target vertical or niche the agency serves (e.g., "SaaS", "local dentists", "DTC ecommerce"), (c) the agency's website or positioning, and optionally (d) a sample client domain to pull real numbers from for case-study copy.
 
 ## Process
 
-1. **Niche data pull** `DATA_getDomainOverviewWorldwide`, `DATA_getDomainCompetitors`, `DATA_getAiOverview`
+1. **Niche data pull** `dataforseo_labs_google_domain_rank_overview`, `dataforseo_labs_google_competitors_domain`, `serp_organic_live_advanced` (AI overview items are in the response)
    - If a sample client domain was provided, pull their organic traffic, top competitors, and AI Overview exposure.
    - Extract 3 concrete, pitchable numbers for the page (e.g., "agencies in this niche average 12k organic visits/mo. Top performers average 180k.").
 
@@ -135,13 +135,13 @@ Spots left this month: {n}
 
 `README.md` explains:
 - How to fill in client logos and case-study numbers.
-- How to wire the form to a real audit backend (link to SE Ranking audit API or the agency's own tool).
+- How to wire the form to a real audit backend (link to DataForSEO audit API or the agency's own tool).
 - How to deploy: Netlify, Vercel, or drop into any static host.
 - How to A/B test the hero headline.
 
 ## Tips
 
-- Respect SE Ranking Data API rate limit: 10 requests per second. Iterate sequentially.
+- Respect DataForSEO Data API rate limit: 10 requests per second. Iterate sequentially.
 - The page lives and dies by the hook. Specific numbers beat generalities. "You are losing 18% of top-funnel traffic to AI Overviews" beats "AI is changing SEO".
 - Do not promise what the agency cannot deliver. If the free audit is limited to the first 100 URLs, say so on the page.
 - Mobile-first. Hero fits on one iPhone screen.

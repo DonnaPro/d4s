@@ -11,16 +11,16 @@ Transform seed keywords into a prioritised cluster plan: each cluster grouped by
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - User provides: (a) 3 to 20 seed keywords, (b) target market country (default: `us`), and optionally (c) minimum volume threshold (default: 100/mo), (d) maximum KD (default: 60).
 
 ## Process
 
-1. **Expand seeds** `DATA_getRelatedKeywords`, `DATA_getSimilarKeywords`, `DATA_getLongTailKeywords`
+1. **Expand seeds** `dataforseo_labs_google_related_keywords`, `dataforseo_labs_google_keyword_suggestions`, `dataforseo_labs_google_keyword_suggestions`
    - For each seed, pull related + similar + long-tail variants in the target country.
    - Target at least 100 candidate keywords per seed; de-duplicate across seeds.
 
-2. **Question-based expansion** `DATA_getKeywordQuestions`
+2. **Question-based expansion** `dataforseo_labs_google_related_keywords`
    - Pull question-intent keywords for the top 5 seeds.
    - These usually become spoke articles with PAA/featured-snippet potential.
 
@@ -29,7 +29,7 @@ Transform seed keywords into a prioritised cluster plan: each cluster grouped by
    - Strip branded terms the target does not own.
    - Tag each keyword with detected intent: informational, commercial, transactional, navigational.
 
-4. **Cluster by SERP overlap** `DATA_getSerpResults` (or `DATA_getSerpTaskAdvancedResults`)
+4. **Cluster by SERP overlap** `serp_organic_live_advanced`
    - Group keywords by how Google actually ranks them — shared top-10 organic URLs — not by text similarity. Token-overlap clustering manufactures cannibalisation; see `references/serp-overlap-methodology.md` for the full algorithm and anti-pattern callouts.
    - **Budget guard before running.** Compute `estimated_credits = num_candidate_keywords × per_keyword_cost` where `per_keyword_cost = 3` (SERP-standard, default) or `10` (SERP-advanced, only if downstream needs AIO/PAA). Standard is sufficient for clustering. If `estimated_credits > 500`, surface the figure to the user and offer two paths: (a) proceed with SERP-standard, (b) trim the candidate set by raising the min-volume / lowering the max-KD thresholds in step 3 and re-running. If the user already requested SERP-advanced and the estimate exceeds 500, additionally offer SERP-standard as a cheaper fallback.
    - **Fetch SERPs** (one call per unique candidate keyword, cached for the session) — see `references/serp-overlap-methodology.md` § "Caching". Total SERP fetches = number of keywords, not number of pairs.
@@ -133,8 +133,8 @@ All gates passed (cannibalisation/orphan/coverage/anchor-diversity).
 
 ## Tips
 
-- Respect Data API rate limit: 10 requests per second. With 20 seeds and 3 expansion endpoints, this is ~60 calls; pace sequentially.
-- Call `DATA_getCreditBalance` before running. The dominant cost driver is now the SERP-overlap pass in step 4: ≈ 3 credits per candidate keyword in SERP-standard mode (default), ≈ 10 credits in SERP-advanced. A typical 40-keyword candidate set is ≈ 120 credits standard / ≈ 400 credits advanced. Step 4's budget guard surfaces this estimate to the user before fetching any SERPs and offers a cheaper-fallback path if the estimate exceeds 500 credits.
+- Respect DataForSEO API rate limit: 10 requests per second. With 20 seeds and 3 expansion endpoints, this is ~60 calls; pace sequentially.
+- The dominant cost driver is the SERP-overlap pass in step 4: ≈ 3 credits per candidate keyword in SERP-standard mode (default), ≈ 10 credits in SERP-advanced. A typical 40-keyword candidate set is ≈ 120 credits standard / ≈ 400 credits advanced. Step 4's budget guard surfaces this estimate to the user before fetching any SERPs and offers a cheaper-fallback path if the estimate exceeds 500 credits.
 - Do not lump different intents into the same cluster even if the keywords are semantically similar. "Best X" (commercial) and "What is X" (informational) deserve separate content.
 - Pillar pages fail when they try to rank for too narrow a query. The primary keyword of a pillar cluster should have volume > 1,000/mo and be broad enough to justify a 3,000+ word article.
 - The priority score is a starting point, not a mandate. Ask the user to review the top 3 clusters before committing a quarter of content.

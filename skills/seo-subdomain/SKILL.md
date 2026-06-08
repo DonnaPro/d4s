@@ -10,7 +10,7 @@ Map a domain's subdomain ecosystem. Which subdomains exist, what each ranks for,
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - User provides: a target root domain (e.g. `example.com`). The skill discovers subdomains automatically.
 - Optional: `--limit N` to cap the number of subdomains analysed (default: top 10 by ranked keyword count).
 
@@ -18,33 +18,32 @@ Map a domain's subdomain ecosystem. Which subdomains exist, what each ranks for,
 
 1. **Validate & preflight**
    - Normalise root domain (no protocol, no `www.`).
-   - `DATA_getCreditBalance` — surface remaining credits. Subdomain analysis is N × ~5 calls; cost scales with subdomain count.
+   - Subdomain analysis is N × ~5 calls; cost scales with subdomain count. Surface estimated call count before proceeding.
 
-2. **Discover subdomains** `DATA_getDomainSubdomains`
-   - List all subdomains of the root domain.
-   - For each: keyword count, traffic estimate, backlinks count.
+2. **Discover subdomains** `dataforseo_labs_google_subdomains`
+   - List all subdomains of the root domain with keyword count, traffic estimate.
    - Sort by ranked-keyword count descending.
    - Apply `--limit` (default top 10).
 
-3. **Per-subdomain overview** `DATA_getDomainOverviewWorldwide`
-   - For each subdomain in scope: domain authority, traffic estimate, organic + paid keyword counts, top regions.
+3. **Per-subdomain overview** `dataforseo_labs_google_domain_rank_overview`
+   - For each subdomain in scope: domain rank, traffic estimate, organic keyword count, top regions.
    - This establishes a baseline for cross-subdomain comparison.
 
-4. **Per-subdomain top keywords** `DATA_getDomainKeywords`
+4. **Per-subdomain top keywords** `dataforseo_labs_google_ranked_keywords`
    - For each subdomain: top 100 organic keywords with positions, intent, traffic.
-   - Cluster keywords by topic. This skill's grouping is a lightweight per-subdomain ownership map, not a content plan — token-grouping by head term + intent is sufficient here. (For full content-cluster planning use `seo-keyword-cluster`, which now clusters by SERP overlap, not text similarity.)
+   - Cluster keywords by topic. This skill's grouping is a lightweight per-subdomain ownership map, not a content plan — token-grouping by head term + intent is sufficient here. (For full content-cluster planning use `seo-keyword-cluster`.)
    - Each subdomain gets a list of "owned topics" (clusters where it dominates) and "minor topics".
 
-5. **Per-subdomain competitors** `DATA_getDomainCompetitors`
-   - For each subdomain: top organic competitors by `common_keywords`.
+5. **Per-subdomain competitors** `dataforseo_labs_google_competitors_domain`
+   - For each subdomain: top organic competitors by common keywords.
    - Surface: do different subdomains have different competitor sets? (Sign of legitimately separate scopes.) Do they share competitors? (Sign of redundant scopes.)
 
-6. **Per-subdomain backlinks** `DATA_getBacklinksSummary` and `DATA_getBacklinksRefDomains` (top 20)
+6. **Per-subdomain backlinks** `backlinks_summary` and `backlinks_referring_domains` (top 20)
    - Subdomains often have separate backlink profiles. Capture each.
    - Surface: do subdomains have meaningfully different referring-domain populations?
 
-7. **Authority distribution** `DATA_getDistributionOfDomainAuthority`
-   - For each subdomain, pull DA distribution of referring domains.
+7. **Backlink rank distribution** `backlinks_bulk_ranks`
+   - For each subdomain, pull Domain Rating / Rank metrics to compare authority across subdomains.
 
 8. **Detect fragmentation**
    - For each topic-cluster, identify all subdomains ranking for keywords in that cluster.
@@ -69,7 +68,7 @@ seo-subdomain-{target-slug}-{YYYYMMDD}/
 ├── 06-topic-ownership-map.md           (cluster × subdomain matrix — load-bearing reference content teams brief from)
 ├── 07-fragmentation-flags.md           (cannibalization detected — load-bearing reference for consolidation decisions)
 └── evidence/
-    ├── 01-subdomains-list.md           (DATA_getDomainSubdomains — raw step output)
+    ├── 01-subdomains-list.md           (dataforseo_labs_google_subdomains — raw step output)
     ├── 02-overview-by-subdomain.md     (per-subdomain overview rows)
     ├── 03-keywords-by-subdomain/
     │   ├── blog-example-com.md
@@ -90,11 +89,11 @@ Top-level: `SUBDOMAINS.md` + `06-topic-ownership-map.md` + `07-fragmentation-fla
 
 ## Subdomain inventory
 
-| Subdomain | Keywords | Traffic est. | Backlinks | Domain authority | Top topics owned |
+| Subdomain | Keywords | Traffic est. | Backlinks | Domain Rank | Top topics owned |
 |---|---|---|---|---|---|
-| {root} | {n} | {n}/mo | {n} | {DA} | {topics} |
-| blog.{root} | {n} | {n}/mo | {n} | {DA} | {topics} |
-| docs.{root} | {n} | {n}/mo | {n} | {DA} | {topics} |
+| {root} | {n} | {n}/mo | {n} | {rank} | {topics} |
+| blog.{root} | {n} | {n}/mo | {n} | {rank} | {topics} |
+| docs.{root} | {n} | {n}/mo | {n} | {rank} | {topics} |
 | ... |
 
 ## Topic ownership map
@@ -133,10 +132,9 @@ Top-level: `SUBDOMAINS.md` + `06-topic-ownership-map.md` + `07-fragmentation-fla
 
 ## Tips
 
-- Respect rate limit. The skill makes ~5 calls per subdomain. With `--limit 10`, that's ~50 calls; pace sequentially.
-- Call `DATA_getCreditBalance` before running. Cost scales with subdomain count: ~20–60 credits typical for `--limit 10`; up to 150+ for unlimited.
+- Respect DataForSEO API rate limits. The skill makes ~5 calls per subdomain. With `--limit 10`, that's ~50 calls; pace sequentially.
 - **`--limit` is your friend.** Sites with hundreds of subdomains (large platforms) don't need every subdomain analysed — top 10 by keyword count covers >90% of organic value usually.
-- **Don't conflate "subdomain has lower DA" with "subdomain is bad."** Subdomains often have lower DA than the root because they accumulate links separately. The question is topic ownership and cannibalization, not DA per se.
+- **Don't conflate "subdomain has lower Domain Rank" with "subdomain is bad."** Subdomains often have lower authority than the root because they accumulate links separately. The question is topic ownership and cannibalization, not rank per se.
 - **Consolidation is risky.** A 301 from `blog.example.com` to `example.com/blog/` retains most link equity but can lose 5–15% in transition. Track post-migration with `seo-drift`.
 - **Don't recommend consolidation when one subdomain is on a different platform.** If `blog.example.com` is on a different CMS, the engineering cost of consolidation may exceed the SEO benefit. Surface this as a constraint, not a recommendation.
 - The topic-ownership matrix is the highest-leverage artifact. Use it to brief content teams on which subdomain should publish what.

@@ -17,7 +17,7 @@ Produce conversion-tuned landing pages targeting comparative-intent keywords ("X
 
 ## Prerequisites
 
-- SE Ranking MCP server connected.
+- DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available.
 - User provides: (a) the user's brand/product (the page's hero), (b) target competitor(s) — at least one, optionally up to 5 for an alternatives page, (c) page type (auto-detected from the keyword if user doesn't specify), (d) target country (default `us`).
 
@@ -27,15 +27,15 @@ Produce conversion-tuned landing pages targeting comparative-intent keywords ("X
    - From the user's input, detect: vs / alternatives / best-of.
    - If page type unclear, ask the user. Don't guess silently.
 
-2. **Pull competitor context** `DATA_getDomainCompetitors`
+2. **Pull competitor context** `dataforseo_labs_google_competitors_domain`
    - For the user's domain, list top organic competitors by `common_keywords` overlap.
    - Validate that the user's named competitor is in the list (or close).
 
-3. **Pull keyword data per brand** `DATA_getDomainKeywords`
+3. **Pull keyword data per brand** `dataforseo_labs_google_ranked_keywords`
    - For the user's domain and each named competitor, pull top 100 organic keywords.
    - Identify: keywords each brand owns exclusively, keywords both rank for, gaps.
 
-4. **Pull comparative SERPs** `DATA_getSerpResults` and `DATA_getKeywordQuestions`
+4. **Pull comparative SERPs** `serp_organic_live_advanced` and `dataforseo_labs_google_related_keywords`
    - For "X vs Y" / "alternatives to X" / "best X for Y" target keyword(s):
      - Top 10 organic results — who else ranks for this comparative keyword?
      - PAA questions (these become FAQ section content).
@@ -56,13 +56,13 @@ Produce conversion-tuned landing pages targeting comparative-intent keywords ("X
    - Output `competitor-elements.csv` — one row per competitor URL × these signals.
    - Cost: 1 Firecrawl credit per URL. Surface estimate before running; refuse >50 URLs without `--confirm-cost`.
 
-6. **Pull keyword comparison data** `DATA_getDomainKeywordsComparison` (if available for the brands)
+6. **Pull keyword comparison data** `dataforseo_labs_google_domain_intersection` (if available for the brands)
    - Side-by-side keyword overlap.
 
 7. **Build feature matrix**
    - Dimensions inferred from the top SERP winners (e.g., "Pricing", "Free tier", "Integrations", "Support tiers", "Best for").
    - Cells: ✓ / ✗ / partial / "TBD — confirm with PM" placeholders for fields you can't auto-infer.
-   - Where SE Ranking data informs a cell (e.g., "ranks for X enterprise keywords"), pull the number.
+   - Where DataForSEO data informs a cell (e.g., "ranks for X enterprise keywords"), pull the number.
 
 8. **Synthesise** `COMPARISON.md`
    - Hero (target keyword in H1, balanced positioning).
@@ -85,8 +85,8 @@ seo-competitor-pages-{target-slug}-{YYYYMMDD}/
 ├── schema.jsonld                     (paste-ready Product + Breadcrumb + FAQ — load-bearing artefact for engineering)
 ├── 05b-competitor-elements.csv       (only if --bulk-scrape ran: competitor URL × on-page-element grid)
 └── evidence/
-    ├── 01-competitor-context.md      (DATA_getDomainCompetitors — raw step output)
-    ├── 02-keyword-overlap.md         (DATA_getDomainKeywords for each brand — raw step output)
+    ├── 01-competitor-context.md      (dataforseo_labs_google_competitors_domain — raw step output)
+    ├── 02-keyword-overlap.md         (dataforseo_labs_google_ranked_keywords for each brand — raw step output)
     ├── 03-comparative-serp.md        (top 10 + PAA for the target keyword — raw step output)
     └── 04-existing-pages-teardown.md (top-3 SERP winners' structure + schema/og — Firecrawl-recovered)
 ```
@@ -158,7 +158,7 @@ See `schema.jsonld` — paste into `<head>`.
 
 - **Balance is conversion.** Pages that pretend the user's product is always better lose trust and rankings. Honest assessments outperform partisan ones.
 - Respect rate limit. Step 5 (fetching top 3 SERP winners) takes 3 WebFetch calls + earlier MCP queries.
-- Cost: ~15–25 SE Ranking credits typical, +3 Firecrawl credits for the schema/og benchmark in step 5, +1 Firecrawl credit per URL in step 5b (opt-in only). Pass `--no-firecrawl` to skip both Firecrawl steps.
+- Cost: typical API usage for ~15–25 DataForSEO calls, +3 Firecrawl credits for the schema/og benchmark in step 5, +1 Firecrawl credit per URL in step 5b (opt-in only). Pass `--no-firecrawl` to skip both Firecrawl steps.
 - **Schema:** use `Product` for both products in a vs page, plus `BreadcrumbList`, plus `FAQPage` if the FAQ section is real Q&A (not a manufactured one).
 - For "alternatives to X" pages, position the user's product as one of N (typically 5–10), not as #1. Numbered listicles convert better than self-promotional alternatives pages.
 - For "best X for Y" pages, segment by use case explicitly — "best for solo developers" vs "best for enterprise teams" — this lets you win multiple long-tail variants.
