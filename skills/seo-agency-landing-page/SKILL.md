@@ -17,6 +17,7 @@ Produce a production-ready landing page for an SEO agency offering a free audit 
 ## Process
 
 1. **Niche data pull** `dataforseo_labs_google_domain_rank_overview`, `dataforseo_labs_google_competitors_domain`, `serp_organic_live_advanced` (AI overview items are in the response)
+   - Market: per CLAUDE.md defaults (UK unless the user specifies). Set `limit` + filters on Labs calls per CLAUDE.md.
    - If a sample client domain was provided, pull their organic traffic, top competitors, and AI Overview exposure.
    - Extract 3 concrete, pitchable numbers for the page (e.g., "agencies in this niche average 12k organic visits/mo. Top performers average 180k.").
 
@@ -44,88 +45,21 @@ Produce a production-ready landing page for an SEO agency offering a free audit 
 
 ## Output format
 
-Create a folder `seo-agency-landing-page-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-agency-landing-page-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-agency-landing-page-{target-slug}-{YYYYMMDD}/
+output/seo-agency-landing-page-{target-slug}-{YYYYMMDD}/
 ├── 01-niche-data.md      # the real numbers pulled in step 1
 ├── 02-pain-points.md     # the 3 pains used in copy
-├── index.html            # self-contained HTML page (Tailwind via CDN)
+├── index.html            # self-contained HTML page (uses the site's CSS stack, or minimal inline styles)
 ├── copy.md               # the copy alone, markdown, for CMS paste
 └── README.md             # how to customise and deploy
 ```
 
-`copy.md` follows this shape:
-
-```markdown
-# {Hero headline}
-## {Hero subhead}
-> Hook: {pain-centric, specific, 12-18 words}
-
-[CTA button: Get my free audit]
-
-Supporting microcopy: No credit card. Results in 5 minutes. We never share your data.
-
----
-
-## Section 1: The 3 things killing SEO for {niche} in 2026
-
-### 1. {Pain 1}
-{One paragraph with real number from step 1}
-
-### 2. {Pain 2}
-...
-
-### 3. {Pain 3}
-...
-
-[CTA button: See how your site scores]
-
----
-
-## Section 2: What the free audit covers
-- {deliverable 1, e.g., "Critical technical issues on your top 20 pages"}
-- {deliverable 2, e.g., "AI Overview exposure: which of your queries LLMs answer without you"}
-- {deliverable 3, e.g., "Backlink gaps vs your 3 closest competitors"}
-- {deliverable 4, e.g., "Top 10 quick-win keywords you could rank for in 90 days"}
-
----
-
-## Section 3: Why {agency name}
-- {Proof point 1: case study with number}
-- {Proof point 2}
-- {Proof point 3}
-
-Logo bar: {placeholder for 4-6 client logos}
-
----
-
-## Section 4: How it works
-1. You enter your domain
-2. We run the audit (5 minutes)
-3. You receive the PDF report
-4. (Optional) Book a 30-min call to walk through it
-
-[CTA button: Start my free audit]
-
----
-
-## FAQ
-- **How long does the audit take?** 5 minutes.
-- **Is it really free?** Yes. No credit card. No follow-up spam.
-- **What happens after?** You get the report. If you want help executing, we can discuss.
-- **How many free audits do you offer?** We cap it at {n}/month so quality stays high.
-
----
-
-## Final CTA
-[CTA button: Claim my free audit spot]
-
-Spots left this month: {n}
-```
+`copy.md` is the page copy in markdown: hero (headline / subhead / hook / CTA + microcopy), Section 1 (the 3 niche pains with real numbers from step 1), Section 2 (what the free audit covers), Section 3 (why {agency} + proof + logo bar), Section 4 (how it works), FAQ, and a final CTA with spots-left urgency. Full skeleton: `templates/report.md`.
 
 `index.html` is a self-contained page with:
-- Tailwind CSS via CDN (`https://cdn.tailwindcss.com`).
+- **The site's existing CSS stack.** If the agency's site uses Tailwind, Bootstrap, or a house stylesheet, match it. If there is no existing stack (or none is provided), inline a minimal stylesheet in a `<style>` block — do NOT hard-require a CDN framework.
 - Semantic HTML, no JS frameworks.
 - A real HTML form POSTing to a configurable endpoint (placeholder `action="REPLACE_WITH_FORM_ENDPOINT"`).
 - OG tags for social sharing.
@@ -145,6 +79,6 @@ Spots left this month: {n}
 - The page lives and dies by the hook. Specific numbers beat generalities. "You are losing 18% of top-funnel traffic to AI Overviews" beats "AI is changing SEO".
 - Do not promise what the agency cannot deliver. If the free audit is limited to the first 100 URLs, say so on the page.
 - Mobile-first. Hero fits on one iPhone screen.
-- The lead-magnet audit should itself be an automated workflow, not a promise. Chain with the `website-audit-change-report` skill as the delivery mechanism.
+- The lead-magnet audit should itself be an automated workflow, not a promise. Chain with the `seo-drift` skill as the delivery mechanism.
 - Do not add stock photography. Real screenshots of actual audit outputs convert better.
 - If the agency has no case studies yet, use aggregate data (e.g., "Agencies like ours typically lift organic traffic by 40-80% in year one") with a clear disclaimer, not fake numbers.

@@ -1,6 +1,6 @@
 # E-E-A-T scoring rubric (60 items)
 
-> **Sept-2025 QRG generalisation.** Updated for the September 2025 Quality Rater Guidelines and December 2025 core update — E-E-A-T applies broadly, not only to YMYL topics. The dimension definitions below, the 4 vetoes, and the AI-content-markers checklist are framed as defaults across all topics; the YMYL-specific calibrations are called out where they differ.
+> **Scope.** E-E-A-T applies broadly, not only to YMYL topics. The dimension definitions below, the 4 vetoes, and the AI-content-markers checklist are framed as defaults across all topics; the YMYL-specific calibrations are called out where they differ. (Provenance, as of 2026-07: this rubric was last aligned with the September 2025 Quality Rater Guidelines and the December 2025 core update — treated as background, not as scoring logic.)
 
 15 items per dimension × 4 dimensions = 60 total. Score each: ✓ (full credit), ~ (partial), ✗ (fail). Dimension score = ✓ ÷ 15 × 100%. E-E-A-T composite = average of dimension scores.
 

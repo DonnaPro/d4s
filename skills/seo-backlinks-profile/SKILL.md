@@ -25,10 +25,11 @@ A complete backlink profile audit for a domain. Surfaces composition (where do l
 2. **Profile summary** `backlinks_summary`
    - Total backlinks, total referring domains, dofollow/nofollow ratio, link-type distribution (text / image / form / frame), growth velocity over the last 30/90 days.
 
-3. **Referring domains** `backlinks_referring_domains`
-   - Top N referring domains by authority. Pull authority score, link count per domain, domain TLD, country.
+3. **Referring domains** `backlinks_referring_domains` (`limit: 100, order_by: ["rank,desc"]`)
+   - Top referring domains by authority. Pull authority score, link count per domain, domain TLD, country.
+   - **Small-profile guard:** if the total referring-domain count (from step 2) is under 50, the profile is too small for meaningful distribution statistics. Skip the authority histogram (step 5) and IP/subnet diversity scoring (step 6), and set the `PROFILE.md` verdict to `profile too small to score (<50 referring domains)` — report the raw numbers only, no health score.
 
-4. **Anchor distribution** `backlinks_anchors`
+4. **Anchor distribution** `backlinks_anchors` (`limit: 100`)
    - Top anchor texts by frequency.
    - Classify each anchor: branded (contains brand name), exact-match commercial (the target's primary commercial keyword), partial-match, generic ("click here", "read more", "this page"), naked URL, image-alt-derived.
 
@@ -46,7 +47,7 @@ A complete backlink profile audit for a domain. Surfaces composition (where do l
    - Net new referring domains per month.
    - Velocity changes — sharp spikes or sharp losses both deserve flags.
 
-8. **Lost links list** `backlinks_backlinks` (filtered to lost), `backlinks_bulk_new_lost_referring_domains`
+8. **Lost links list** `backlinks_backlinks` (`filters: [["is_lost","=",true]], limit: 50`), `backlinks_bulk_new_lost_referring_domains`
    - Sample recent losses. Are any high-authority losses?
 
 8b. **Optional: live link-source verification** `mcp__firecrawl-mcp__firecrawl_scrape`
@@ -60,7 +61,7 @@ A complete backlink profile audit for a domain. Surfaces composition (where do l
    - Feeds into step 9: a verified-gone link or `rel=nofollow` discovered post-hoc upgrades the toxic-candidate signal for that referring domain.
    - **If Firecrawl unavailable (or flag not passed):** skip entirely. DataForSEO's reported state remains the source of truth for all non-verified steps.
 
-9. **Toxic candidate detection** (heuristic — see Tips for the rules)
+9. **Toxic candidate detection** (heuristic — see `references/health-heuristics.md` for the rules)
    - Apply the toxic heuristic to the referring-domain list.
    - Flag candidates. Each row gets a `risk_score` and `triggers` (which heuristic rules fired).
    - **Never auto-disavow.** Output is a reviewable list, not an action.
@@ -69,10 +70,10 @@ A complete backlink profile audit for a domain. Surfaces composition (where do l
 
 ## Output format
 
-Create a folder `seo-backlinks-profile-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-backlinks-profile-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-backlinks-profile-{target-slug}-{YYYYMMDD}/
+output/seo-backlinks-profile-{target-slug}-{YYYYMMDD}/
 ├── PROFILE.md                       (synthesised report — primary deliverable; inlines summary, authority distribution, diversity, trend)
 ├── 02-referring-domains.md          (top N with authority — load-bearing reference for outreach/audit)
 ├── 03-anchors.md                    (anchor distribution + classification — load-bearing reference)
@@ -88,83 +89,7 @@ seo-backlinks-profile-{target-slug}-{YYYYMMDD}/
 
 Step files 01, 04, 05, 06 are inlined as sections in `PROFILE.md`; the copies in `evidence/` preserve raw step output for reproducibility. `02-referring-domains.md`, `03-anchors.md`, and `disavow-candidates.csv` stay at top level — outreach/audit teams consult them directly.
 
-`PROFILE.md` follows this shape:
-
-```markdown
-# Backlinks Profile: {domain}
-
-> Snapshot dated {YYYY-MM-DD}
-
-## Health score: **{n}/100**
-
-| Dimension | Score | Notes |
-|---|---|---|
-| Authority distribution | {n}/20 | {comment} |
-| Anchor diversity | {n}/20 | {comment} |
-| IP/subnet diversity | {n}/20 | {comment} |
-| Growth trajectory | {n}/20 | {comment} |
-| Toxic candidate ratio | {n}/20 | {comment} |
-
-## Top-line numbers
-
-| Metric | Value |
-|---|---|
-| Backlinks | {n} |
-| Referring domains | {n} |
-| Dofollow / nofollow | {n}% / {n}% |
-| Unique IPs | {n} |
-| Unique subnets | {n} |
-| Domain : subnet ratio | {ratio} |
-| New ref-domains last 30d | {n} |
-| Lost ref-domains last 30d | {n} |
-| Toxic candidates flagged | {n} ({% of total}) |
-
-## Authority distribution
-
-| Domain Rank bucket | Domains | % |
-|---|---|---|
-| 70+ | {n} | {%} |
-| 50–69 | {n} | {%} |
-| 30–49 | {n} | {%} |
-| 10–29 | {n} | {%} |
-| 0–9 | {n} | {%} |
-
-## Anchor distribution
-
-| Class | Count | % | Healthy range | Status |
-|---|---|---|---|---|
-| Branded | {n} | {%} | 30–60% | {✓/⚠} |
-| Generic | {n} | {%} | 15–30% | {✓/⚠} |
-| Naked URL | {n} | {%} | 10–25% | {✓/⚠} |
-| Partial-match | {n} | {%} | 10–20% | {✓/⚠} |
-| Exact-match commercial | {n} | {%} | <5% | {✓/⚠ over-optimised} |
-| Image-alt-derived | {n} | {%} | <10% | {✓/⚠} |
-
-## Trend (last 6 months)
-
-| Month | New backlinks | Lost backlinks | Net |
-|---|---|---|---|
-| {M-5} | {n} | {n} | {n} |
-| {M-4} | {n} | {n} | {n} |
-| ... |
-
-## Toxic candidates ({n} flagged)
-
-See `disavow-candidates.csv`. Top 10 by risk_score:
-
-| Domain | Domain Rank | Triggers | Risk |
-|---|---|---|---|
-| {domain} | {DR} | {DR<10, sitewide>5, exact-match-anchor} | High |
-| ... |
-
-**⚠ NEVER AUTO-DISAVOW.** Hand this list to a human for review. Disavow a domain only after confirming the link is manipulative AND the domain is not delivering referral traffic AND removal requests have failed.
-
-## Recommended next steps
-
-1. {Action}
-2. {Action}
-3. {Action}
-```
+`PROFILE.md` structure: header → Health score /100 (5 dimensions ×20: authority distribution, anchor diversity, IP/subnet diversity, growth trajectory, toxic ratio) → Top-line numbers → Authority distribution histogram → Anchor distribution (with healthy ranges + status) → Trend (last 6 months) → Toxic candidates (top 10 + NEVER AUTO-DISAVOW warning) → Recommended next steps. Load `templates/report.md` for the full mock when writing the deliverable.
 
 `disavow-candidates.csv` columns: `domain,domain_rank,backlinks_count,sitewide_links,top_anchor,anchor_class,risk_score,triggers,sample_url`
 
@@ -172,15 +97,6 @@ See `disavow-candidates.csv`. Top 10 by risk_score:
 
 - Respect DataForSEO API rate limit. The endpoints in steps 2–8 are ~15 calls; pace sequentially.
 - Optional step 8b adds 20 Firecrawl credits when `--verify-sources` is passed (one scrape per top-20 source domain).
-- **Toxic heuristic rules** (any 2+ triggers = candidate):
-  - Domain Rank < 10 (low-trust source).
-  - Sitewide link count > 5 (footer/sidebar links across many pages — manipulation signal).
-  - Exact-match commercial anchor on >50% of links from this domain.
-  - Hosted in known link-farm subnet (when unique IPs / unique subnets ratio is heavily concentrated).
-  - Domain name is a non-pronounceable string of characters (very strong PBN signal).
-  - TLD is in the high-spam list (`.xyz`, `.click`, `.work` historically; verify against current spam-domain reports).
-- **Healthy anchor distribution**: branded should be the largest class (30–60%); exact-match commercial should be small (<5%) — over-optimised commercial anchors trigger Penguin-era penalties.
-- **Healthy growth**: steady 10–20% YoY referring-domain growth is the goal. Sharp spikes (>50% in a month) often indicate paid links and trigger algorithmic suspicion.
-- **Disavow conservatively.** Removing links via outreach is preferred. Disavow only as a last resort; never disavow domains that send referral traffic.
+- The toxic-candidate rules and profile-health ranges (anchor / growth / disavow guidance) live in `references/health-heuristics.md`.
 - Pair with `seo-backlink-gap` for prospecting (gap analysis vs competitors).
 - Pair with `seo-drift` to track profile composition over time.

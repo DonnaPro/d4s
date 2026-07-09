@@ -1,6 +1,6 @@
 # Hreflang Validation Rules
 
-Load this reference when applying validation in step 4 (per-URL inventory) or step 5 (sitemap). Each row is one rule: detection logic, severity, suggested fix, and the source the rule fires from.
+Load this reference when applying validation in step 3 (per-URL inventory) or step 4 (sitemap). Each row is one rule: detection logic, severity, suggested fix, and the source the rule fires from.
 
 ## Rule table
 
@@ -21,12 +21,18 @@ Load this reference when applying validation in step 4 (per-URL inventory) or st
 | `hreflang_language_without_region` | Low | The hreflang value uses only a language code (e.g. `es`) on a page that's clearly geo-targeted (e.g. only mentions Spain). | If geo-targeting is intended, add the region qualifier (`es-ES`). If not, leave as-is — language-only is a valid choice. | html, sitemap |
 | `hreflang_dual_implementation` | Low | The site emits hreflang in both HTML and sitemap. Not strictly invalid, but doubles maintenance and creates risk of `hreflang_html_sitemap_mismatch`. | Pick one. Sitemap is preferred for sites with > 50 language variants per page; HTML is fine for smaller sites. | html ↔ sitemap |
 
-## Severity definitions (used by step 7's verdict heuristic)
+## Severity definitions (used by the verdict heuristic below)
 
 - **Critical** — entire hreflang set is invalidated; Google ignores it. PASS not possible while any Critical exists.
 - **High** — hreflang set works but is wrong in a way that costs traffic in the affected market. NEEDS-FIX threshold.
 - **Medium** — hreflang set works but is sloppy. Will likely become a problem after the next deploy that touches URLs.
 - **Low** — best-practice nudge. No traffic impact today.
+
+## Verdict heuristic
+
+- **PASS:** zero Critical findings; ≤ 2 High findings; sample URLs all have self-reference, x-default, and reciprocal return tags; all language-region codes valid; canonical aligns with self-ref hreflang.
+- **NEEDS-FIX:** any High finding; or > 5 Medium findings; or any one of (missing x-default, missing return tags on > 25% of sampled pages, language-region code error, sitemap-vs-HTML mismatch).
+- **BROKEN:** any Critical finding; or hreflang attempted but no self-reference on the homepage; or canonical pointing elsewhere on a page that nonetheless emits hreflang (entire set is ignored by Google); or > 50% of sampled URLs missing return tags.
 
 ## Detection notes
 

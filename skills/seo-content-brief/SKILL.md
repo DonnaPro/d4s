@@ -13,7 +13,11 @@ Turn a domain plus a topic intent into a complete content editor brief: target k
 
 - DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available (used for top-3 content teardown).
-- User has provided: (a) target domain, (b) market/country (default: `us`), and optionally (c) a seed topic or intent. If no seed topic is given, discover the best opportunity from the keyword-gap step.
+- User has provided: (a) target domain, (b) market: per CLAUDE.md defaults (UK unless user specifies), and optionally (c) a seed topic or intent. If no seed topic is given, discover the best opportunity from the keyword-gap step.
+- **Preflight.** See `skills/seo-firecrawl/references/preflight.md` (budget guard, Firecrawl availability, Google APIs) and `CLAUDE.md` (market defaults, cost discipline). Skill-specific notes:
+  - Typical DataForSEO calls for this skill: ~7–9 (overview, competitors, gap, one SERP pull, keyword expansion, internal-link pull).
+  - Firecrawl: optional with WebFetch fallback (top-3 on-page benchmark only).
+  - Google APIs: not used.
 
 ## Process
 
@@ -35,10 +39,9 @@ Turn a domain plus a topic intent into a complete content editor brief: target k
    - From the gaps, select one topic. Justify the pick with: traffic potential, difficulty, relevance to the target domain's product. Surface reasoning to the user before proceeding.
 
 5. **SERP and keyword deep-dive for the chosen topic**
-   - `serp_organic_live_advanced` for the top 10 organic + SERP features (AIO, PAA, Featured Snippet, Video).
-   - `dataforseo_labs_google_related_keywords` and `dataforseo_labs_google_keyword_suggestions` for expansion.
-   - `dataforseo_labs_google_related_keywords` for People-Also-Ask and question-based variations.
-   - `serp_organic_live_advanced` + `ai_opt_llm_ment_top_domains` to see which brands LLMs cite today for the topic.
+   - **One** `serp_organic_live_advanced` call — a single call returns the top 10 organic AND all SERP features (AIO, PAA, Featured Snippet, Video). Never re-call for features.
+   - `dataforseo_labs_google_related_keywords` (once — covers expansion AND question-based/PAA variations) and `dataforseo_labs_google_keyword_suggestions` for long-tail expansion.
+   - `ai_opt_llm_ment_top_domains` to see which brands LLMs cite today for the topic (pairs with the SERP call above — no extra SERP pull needed).
 
 6. **Top 3 content analysis** `WebFetch` (always) + `mcp__firecrawl-mcp__firecrawl_scrape` (when available)
    - **WebFetch first** (free, instant): pull markdown for the top 3 ranking URLs. Extract H1/H2/H3 spine, word count per article, shared subtopics, gaps, and prose-level formatting patterns.
@@ -57,10 +60,10 @@ Turn a domain plus a topic intent into a complete content editor brief: target k
 
 ## Output format
 
-Create a folder `seo-content-brief-{target-slug}-{YYYYMMDD}/` with the synthesised brief at the top level and step files in `evidence/`:
+Create a folder `output/seo-content-brief-{target-slug}-{YYYYMMDD}/` with the synthesised brief at the top level and step files in `evidence/`:
 
 ```
-seo-content-brief-{target-slug}-{YYYYMMDD}/
+output/seo-content-brief-{target-slug}-{YYYYMMDD}/
 ├── BRIEF.md                        (writer-ready synthesis — primary deliverable; inlines 01-domain-overview, 02-competitors, 06-internal-links into a "Context" section)
 └── evidence/
     ├── 01-domain-overview.md       (dataforseo_labs_google_domain_rank_overview raw — preserved for reproducibility)
@@ -73,82 +76,13 @@ seo-content-brief-{target-slug}-{YYYYMMDD}/
 
 Top-level: `BRIEF.md` only — a freelance writer should not need to open anything else. Step files preserve the raw API/scrape outputs in `evidence/` for reproducibility / to back up the editor brief.
 
-`BRIEF.md` follows this shape:
+`BRIEF.md` follows the full skeleton in `templates/brief.md` (load it only when writing the deliverable). Structure at a glance:
 
-```markdown
-# Content Brief: {proposed title}
-
-**Template type:** {one of: ultimate-guide / how-to / listicle / explainer / comparison / review / best-of / landing-page / MIXED}
-**Why this template:** {one-sentence justification grounded in SERP top-10 page-type majority + PAA pattern + keyword intent}
-
-## Target keyword
-- Primary: {kw} ({volume}/mo, KD {kd}, intent: informational)
-- Secondary: {kw1} ({volume}), {kw2} ({volume}), {kw3} ({volume})
-
-## Title options
-1. {title option 1}
-2. {title option 2}
-3. {title option 3}
-
-## Meta description (150-160 chars)
-{draft}
-
-## Suggested structure
-
-### H1: {proposed H1}
-
-#### H2: {section 1}
-Cover: {bullets of what to include}
-Cite: {sources to link out to}
-
-#### H2: {section 2}
-...
-
-## Gaps the current top 3 miss
-- {gap 1, with evidence}
-- {gap 2, with evidence}
-- {gap 3, with evidence}
-
-## Top 3 winners — on-page benchmark (Firecrawl)
-
-| Signal | Winner 1 | Winner 2 | Winner 3 | Required for parity |
-|---|---|---|---|---|
-| `<title>` length (chars) | {n} | {n} | {n} | {target} |
-| Meta description length | {n} | {n} | {n} | {target} |
-| `og:image` present | {✓/✗} | {✓/✗} | {✓/✗} | {yes/no} |
-| `twitter:card` | {value} | {value} | {value} | {value} |
-| JSON-LD types | {Article, …} | {…} | {…} | {must include} |
-| Byline structure (DOM) | {✓/✗} | {✓/✗} | {✓/✗} | {yes/no} |
-| Word count (rendered) | {n} | {n} | {n} | {target range} |
-
-(Or: `Top-3 on-page benchmark: skipped — Firecrawl not installed.`)
-
-## Internal linking plan
-| From existing page | Anchor text | Target section |
-|---|---|---|
-| {url} | {anchor} | {section} |
-
-## AI Search angle
-- LLMs currently cite {brands} for this query.
-- To earn mentions: {specific actions, e.g., add a comparison table, cite a primary study, include a structured data block}.
-
-## Deliverables
-- Word count target: {n}
-- Tone and voice: {guidance from domain overview}
-- Required assets: {images, schema, examples}
-
-## Traffic potential
-- Conservative: ~{n}/mo at position 5
-- Target: ~{n}/mo at position 1-3
-
-## Raw data references
-- evidence/01-domain-overview.md
-- evidence/02-competitors.md
-- evidence/03-keyword-gaps.md
-- evidence/04-serp-and-keywords.md
-- evidence/05-content-analysis.md
-- evidence/06-internal-links.md
-```
+- Header: proposed title + template type + one-sentence template justification.
+- Target keyword (primary + secondaries), 3 title options, meta description draft.
+- Suggested structure: H1 + per-H2 "cover/cite" bullets.
+- Gaps the current top 3 miss; top-3 on-page benchmark table (Firecrawl — or a skipped note).
+- Internal linking plan table, AI Search angle, deliverables, traffic potential, raw-data references.
 
 ## Tips
 

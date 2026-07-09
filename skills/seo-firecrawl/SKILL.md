@@ -1,6 +1,6 @@
 ---
 name: seo-firecrawl
-description: Ad-hoc web scraping, site mapping, and full-site crawling via Firecrawl MCP. Returns raw HTML, parsed metadata (og:*, twitter:*, JSON-LD, canonical, robots), JS-rendered DOM, and screenshots that WebFetch cannot. Distinct from the SE Ranking skills (which give keyword/traffic/SERP data) and from WebFetch (which gives markdown prose only). Use when the user says "scrape this page", "crawl this site", "map this site", "find all pages on", "get the OG tags", "get the JSON-LD", "render this JS-heavy page", or any task where raw `<head>` metadata, structured-data scripts, or post-JS DOM are the actual deliverable. Also invoked as a sub-step from other skills that need raw HTML.
+description: Ad-hoc web scraping, site mapping, and full-site crawling via Firecrawl MCP. Returns raw HTML, parsed metadata (og:*, twitter:*, JSON-LD, canonical, robots), JS-rendered DOM, and screenshots that WebFetch cannot. Distinct from the DataForSEO-based analysis skills (which give keyword/traffic/SERP data) and from WebFetch (which gives markdown prose only). Use when the user says "scrape this page", "crawl this site", "map this site", "find all pages on", "get the OG tags", "get the JSON-LD", "render this JS-heavy page", or any task where raw `<head>` metadata, structured-data scripts, or post-JS DOM are the actual deliverable. Also invoked as a sub-step from other skills that need raw HTML.
 ---
 > Example output: [examples/seo-firecrawl-stripe-com-20260514/scrape/FIRECRAWL.md](../../examples/seo-firecrawl-stripe-com-20260514/scrape/FIRECRAWL.md)
 
@@ -45,81 +45,16 @@ A direct interface to Firecrawl MCP for tasks that fall outside the data-driven 
 
 ## Output format
 
-Folder `seo-firecrawl-{slug}-{YYYYMMDD}/`:
+Folder `output/seo-firecrawl-{slug}-{YYYYMMDD}/`. `FIRECRAWL.md` is always the root synthesis + handoff payload; the other files depend on mode:
 
-### Mode = scrape
-```
-seo-firecrawl-{slug}-{YYYYMMDD}/
-├── RAW.md            (markdown body)
-├── META.md           (og / twitter / canonical / robots / headers + parsed JSON-LD)
-├── links.csv         (every <a href> on the page)
-├── screenshot.png    (optional; only if requested)
-└── FIRECRAWL.md      (synthesis + handoff payload)
-```
+| Mode | Files (besides `FIRECRAWL.md`) |
+|---|---|
+| `scrape` | `RAW.md` (markdown body), `META.md` (og / twitter / canonical / robots / headers + parsed JSON-LD), `links.csv` (every `<a href>`), `screenshot.png` (optional; only if requested) |
+| `map` | `URLS.md` (pattern-grouped list), `urls.csv` (every URL + discovery depth if available) |
+| `crawl` | `INDEX.md` (every page + status code + key signals), `pages/{slugified-url}/` each with `RAW.md` + `META.md` |
+| `search` | `MATCHES.md` (hit excerpts + URLs ranked by relevance) |
 
-### Mode = map
-```
-seo-firecrawl-{slug}-{YYYYMMDD}/
-├── URLS.md           (pattern-grouped URL list)
-├── urls.csv          (every URL with discovery depth, if available)
-└── FIRECRAWL.md
-```
-
-### Mode = crawl
-```
-seo-firecrawl-{slug}-{YYYYMMDD}/
-├── INDEX.md          (every page + status code + key signals)
-├── pages/
-│   ├── {slug-1}/RAW.md
-│   ├── {slug-1}/META.md
-│   ├── {slug-2}/RAW.md
-│   └── ...
-└── FIRECRAWL.md
-```
-
-### Mode = search
-```
-seo-firecrawl-{slug}-{YYYYMMDD}/
-├── MATCHES.md        (hit excerpts + URLs ranked by relevance)
-└── FIRECRAWL.md
-```
-
-`FIRECRAWL.md` follows this shape:
-
-```markdown
-# Firecrawl: {target}
-
-> Run dated {YYYY-MM-DD} · Mode: {scrape | map | crawl | search} · Credits used: {n}
-
-## Summary
-
-{One-paragraph what-came-back. Example: "Scraped https://example.com/article. og:title and og:image present, JSON-LD Article schema with author + datePublished. 12 outbound links. Page is server-rendered (no JS-render divergence). Robots: index,follow."}
-
-## Key findings
-
-1. {Finding anchored in concrete data}
-2. ...
-5. ...
-
-## Open loops
-
-- {What this run did NOT answer}
-- ...
-
-## Recommended next step
-
-{One of: `seo-page` (when a single URL was scraped and now wants performance analysis) | `seo-schema` (when JSON-LD audit needs follow-up generation) | `seo-technical-audit` (when crawl revealed broken pages) | `seo-content-audit` (when crawl produced a corpus to audit) | `seo-drift baseline` (when the user wants to track this URL over time) | "this completes the user's ask".}
-
-## Handoff payload
-
-- **Produced by:** seo-firecrawl
-- **Target:** {url or domain}
-- **Mode:** {scrape | map | crawl | search}
-- **Credits used:** {n}
-- **Key findings:** {5 bullets — e.g., "twitter:card present (summary_large_image)", "JSON-LD types: Article + Organization + BreadcrumbList", "robots: index,follow", "canonical self-referencing", "404s: 0 of 50 pages crawled"}
-- **Open loops:** {what this didn't answer}
-- **Recommended next skill:** {seo-page | seo-schema | seo-technical-audit | seo-content-audit | …} — {one-line why}
-```
+`FIRECRAWL.md` = target · mode · credits used · one-paragraph summary · ≤5 key findings (anchored in data) · open loops · recommended next skill · handoff payload. Full skeleton: `templates/report.md`.
 
 ## Tips
 

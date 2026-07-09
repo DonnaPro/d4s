@@ -1,6 +1,6 @@
 ---
 name: seo-google
-description: Direct access to Google's own SEO data via Search Console (Search Analytics, URL Inspection, Sitemaps), PageSpeed Insights v5, CrUX field data with 25-week history, Indexing API v3, GA4 organic traffic, YouTube video search, Google NLP entity/sentiment analysis, Knowledge Graph entity verification, Web Risk safety, and Google Ads Keyword Planner. Bridges crawl-based analysis (the rest of this catalogue) with Google's real-time field data — actual Chrome user metrics, real indexation status, real search performance, real organic traffic. Use when the user asks "search console", "GSC", "PageSpeed", "CrUX", "field data", "indexing API", "GA4 organic", "URL inspection", "google api setup", "real CWV data", "impressions", "clicks", "CTR", "position data", "LCP", "INP", "CLS", "FCP", "TTFB", "Lighthouse scores", "youtube SEO", "knowledge graph", "keyword planner", or "real google data".
+description: The Google first-party data access layer for this SEO catalogue. Direct, authenticated access to Google's own data via Search Console (Search Analytics, URL Inspection, Sitemaps), PageSpeed Insights v5, CrUX field data with 25-week history, Indexing API v3, GA4 organic traffic, YouTube video search, Google NLP entity/sentiment analysis, Knowledge Graph entity verification, Web Risk safety, and Google Ads Keyword Planner. Where the crawl-based skills estimate, this skill returns Google's real measured data — actual Chrome user metrics, real indexation status, real search performance, real organic traffic. Use when the user asks "search console", "GSC", "PageSpeed", "CrUX", "field data", "indexing API", "GA4 organic", "URL inspection", "google api setup", "impressions", "clicks", "CTR", "position data", "youtube SEO", "knowledge graph", "keyword planner", or "real google data".
 ---
 
 > Example output: [examples/seo-google-quickstart-20260514/README.md](../../examples/seo-google-quickstart-20260514/README.md)
@@ -22,7 +22,7 @@ All APIs are free. Setup requires a Google Cloud project with API key and/or ser
 Before executing any command, check credentials:
 
 ```bash
-python scripts/google_auth.py --check --json
+python E:\DonnaProSEO\scripts\google_auth.py --check --json
 ```
 
 Config file shape (`~/.config/seo-skills/google-api.json`):
@@ -81,293 +81,57 @@ Always communicate the detected tier before running commands.
 
 ---
 
-## PageSpeed + CrUX
-
-### `pagespeed <url>`
-
-Combined Lighthouse lab data + CrUX field data.
-
-**Script:** `python scripts/pagespeed_check.py <url> --json`
-**Reference:** `references/pagespeed-crux-api.md`
-**Default:** Both mobile + desktop strategies, all Lighthouse categories.
-
-Output merges lab scores (point-in-time Lighthouse) with field data (28-day Chrome user metrics). CrUX tries URL-level first, falls back to origin-level.
-
-### `crux <url>`
-
-CrUX field data only (no Lighthouse run). Faster.
-
-**Script:** `python scripts/pagespeed_check.py <url> --crux-only --json`
-
-### `crux-history <url>`
-
-25-week CrUX History trends. Shows whether CWV metrics are improving, stable, or degrading.
-
-**Script:** `python scripts/crux_history.py <url> --json`
-**Reference:** `references/pagespeed-crux-api.md`
-
-Output includes per-metric trend direction, percentage change, and weekly p75 values.
-
----
-
-## Search Console
-
-### `gsc <property>`
-
-Search Analytics: clicks, impressions, CTR, position for last 28 days.
-
-**Script:** `python scripts/gsc_query.py --property <property> --json`
-**Reference:** `references/search-console-api.md`
-**Default:** 28 days, dimensions=query,page, type=web, limit=1000.
-
-Includes quick-win detection: queries at position 4-10 with high impressions.
-
-**Filtering:** `--device {desktop,mobile,tablet}`, `--country <ISO3>`, `--page <url-or-substring>` (defaults to `contains` match; pass `--page-match equals` for exact-URL match). Combine for per-URL query analysis: `--page /blog/best-ai-seo-tools/ --dimensions query`.
-
-**AI Overview / AI Mode:** `--ai-overview` (or `--ai-mode`) filters results to queries where Google rendered an AI Overview / AI Mode SERP that included one of your URLs. This is Google's first-party answer to *"are we cited in AI Overview?"* — clicks, impressions, CTR, and avg position straight from GSC. Combine with `--dimensions query,page` to see which queries+pages earned AI Overview presence, or with `--page /post/` to scope to one URL. For other appearance types (`RICH_RESULT`, `REVIEW_SNIPPET`, etc.) use `--search-appearance <value>`.
-
-### `inspect <url>`
-
-URL Inspection: real indexation status from Google.
-
-**Script:** `python scripts/gsc_inspect.py <url> --json`
-
-Returns: verdict (PASS/FAIL), coverage state, robots.txt status, indexing state, page fetch state, canonical selection, mobile usability, rich results.
-
-### `inspect-batch <file>`
-
-Batch inspection from a file (one URL per line). Rate limited to 2,000/day per site.
-
-**Script:** `python scripts/gsc_inspect.py --batch <file> --json`
-
-### `sitemaps <property>`
-
-List submitted sitemaps with status, errors, warnings.
-
-**Script:** `python scripts/gsc_query.py sitemaps --property <property> --json`
-
----
-
-## Indexing API
-
-### `index <url>`
-
-Notify Google of a URL update.
-
-**Script:** `python scripts/indexing_notify.py <url> --json`
-**Reference:** `references/indexing-api.md`
-
-The Indexing API is officially for JobPosting and BroadcastEvent/VideoObject pages. Always inform the user of this restriction. Daily quota: 200 publish requests.
-
-### `index-batch <file>`
-
-Batch submit URLs from a file. Tracks quota usage.
-
-**Script:** `python scripts/indexing_notify.py --batch <file> --json`
-
----
-
-## GA4 Traffic
-
-All GA4 reports accept an optional `--page <path-or-url>` flag to scope the report to a single landing page (EXACT match against GA4's `landingPage` dimension; full URLs are auto-stripped to path). Use it whenever the question is "how is *this* post performing?" rather than site-wide.
-
-`--report organic` and `--report top-pages` accept `--channel <name|all>`: defaults to `organic` (Organic Search), pass `all` to drop the channel filter (required for whole-page weekly trends across all traffic sources), or any GA4 default channel group verbatim — `Direct`, `Referral`, `Paid Search`, `Organic Social`, etc.
-
-### `ga4 [property-id]`
-
-Daily-time-series traffic report: sessions, users, pageviews, bounce rate, engagement.
-
-**Script:** `python scripts/ga4_report.py --property <id> --json`
-**Reference:** `references/ga4-data-api.md`
-**Default:** 28 days, filtered to Organic Search channel group. Pass `--channel all` for unfiltered traffic.
-
-The all-channels variant is what answers "how is this post growing week over week?" when most of the traffic is Direct or Referral rather than Organic — the canonical case for AI-cited content. Example: `--report organic --page /blog/best-ai-seo-tools/ --channel all --days 99`.
-
-### `ga4-pages [property-id]`
-
-Top landing pages ranked by sessions for the chosen channel (default Organic Search; use `--channel all` for site-wide top pages across every source).
-
-**Script:** `python scripts/ga4_report.py --property <id> --report top-pages --json`
-
-### `ga4-referrals [property-id]`
-
-Referral sessions broken down by `sessionSource`. Defaults to a curated AI-assistant
-hostname list — OpenAI (chatgpt.com, chat.openai.com), Anthropic (claude.ai), Google
-(gemini.google.com, bard.google.com), Microsoft (copilot.microsoft.com), Perplexity
-(perplexity.ai), Alibaba/Qwen (chat.qwen.ai, qwen.com, tongyi.aliyun.com), Mistral
-(chat.mistral.ai), DeepSeek (chat.deepseek.com), xAI/Grok (grok.com, x.ai), plus
-you.com / phind.com / poe.com — so the "how much traffic do AI assistants actually
-send us?" question is one command. Use this as a reality check against AI-visibility
-data from `seo-ai-search-share-of-voice` and `seo-geo` — referral volume measures
-users sharing your links in AI chats, not whether the AI proactively cites you.
-
-**Script:** `python scripts/ga4_report.py --property <id> --report referrals --json`
-
-**Source modes (`--sources`):**
-- `ai` (default) — curated AI-assistant hostname list
-- `all` — every source in the Referral channel group
-- `chatgpt.com,perplexity.ai,...` — explicit comma-separated list
-
-Combine with `--page` to answer "how much AI traffic did THIS specific post get?":
-`--report referrals --page /blog/best-ai-seo-tools/`.
-
-### `ga4-channel-mix [property-id]`
-
-Sessions broken down by `sessionDefaultChannelGroup` (Direct / Organic Search / Referral / Paid Search / Organic Social / …). No channel filter — this is the diagnostic view for "where does traffic to this page actually come from?". Each row includes a `share_of_sessions` percentage so the mix is visible at a glance.
-
-**Script:** `python scripts/ga4_report.py --property <id> --report channel-mix --json`
-
-This is the report that answers questions like *"is this post mostly winning on organic, or is the traffic coming from somewhere else?"*. AI-assistant traffic frequently lands in `Direct` (uncredited) rather than `Referral`, so a high Direct share on a recent content-heavy page is itself an AI-visibility signal — pair with `ga4-referrals` for a fuller picture.
-
-Per-page diagnosis: `--report channel-mix --page /blog/best-ai-seo-tools/ --days 90`.
-
-### `ga4-properties`
-
-Enumerates every GA4 account and property the service account can read. Use this
-*before* running `ga4` / `ga4-pages` / `ga4-referrals` / `ga4-channel-mix` when the
-client has multiple GA4 properties (typical: separate marketing-site and app
-properties, or per-region properties) and you need to know which property_id to
-query. Output groups properties by parent account; the `property_id` field is the
-numeric value to pass as `--property`.
-
-**Script:** `python scripts/ga4_admin.py properties --json`
-
-Requires the **Google Analytics Admin API** to be enabled in your Cloud project
-(separate from the Data API) and the service account to have Viewer access on at
-least one property.
-
----
-
-## YouTube (Video SEO)
-
-YouTube mentions have the strongest AI visibility correlation (0.737). Free, API key only.
-
-### `youtube <query>`
-
-Search YouTube for videos. Returns title, channel, views, likes, duration.
-
-**Script:** `python scripts/youtube_search.py search "<query>" --json`
-**Reference:** `references/youtube-api.md`
-**Quota:** 100 units per search (10,000 units/day free).
-
-### `youtube-video <video_id>`
-
-Detailed video info + tags + top 10 comments.
-
-**Script:** `python scripts/youtube_search.py video <video_id> --json`
-**Quota:** 2 units (video details + comments).
-
----
-
-## NLP Content Analysis
-
-Google's own entity/sentiment analysis. Enhances E-E-A-T scoring.
-
-### `nlp <url-or-text>`
-
-Full NLP analysis: entities, sentiment, content classification.
-
-**Script:** `python scripts/nlp_analyze.py --url <url> --json` or `--text "..."`
-**Reference:** `references/nlp-api.md`
-**Free tier:** 5,000 units/month. Requires billing enabled on GCP project.
-
-### `entities <url-or-text>`
-
-Entity extraction only (faster, less quota).
-
-**Script:** `python scripts/nlp_analyze.py --url <url> --features entities --json`
-
----
-
-## Keyword Research (Google Ads)
-
-Gold-standard keyword volume data. Requires Google Ads account.
-
-### `keywords <seed>`
-
-Generate keyword ideas from seed terms.
-
-**Script:** `python scripts/keyword_planner.py ideas "<seed>" --json`
-**Reference:** `references/keyword-planner-api.md`
-**Requires:** Ads developer token + customer ID in config (Tier 3).
-
-### `volume <keywords>`
-
-Search volume for specific keywords (comma-separated).
-
-**Script:** `python scripts/keyword_planner.py volume "<kw1>,<kw2>" --json`
-
----
-
-## Supplementary
-
-### `entity <query>`
-
-Knowledge Graph entity check. Verifies brand presence.
-
-**Reference:** `references/supplementary-apis.md`
-Uses Knowledge Graph Search API with API key.
-
-### `safety <url>`
-
-Web Risk API check for malware/social engineering flags.
-
-**Reference:** `references/supplementary-apis.md`
-
-### `quotas`
-
-Display rate limits table. Read `references/rate-limits-quotas.md`.
-
----
-
-## Reports
-
-After any analysis command, offer to generate a PDF/HTML/XLSX report.
-
-### `report <type>`
-
-Generate a professional PDF/HTML/XLSX report with charts and analytics.
-
-**Script:** `python scripts/google_report.py --type <type> --data <json> --domain <domain> --format pdf`
-
-| Type | Input | Output |
-|------|-------|--------|
-| `cwv-audit` | PSI + CrUX + CrUX History data | Core Web Vitals audit with gauges, timelines, distributions |
-| `gsc-performance` | GSC query data | Search Console report with query tables, quick wins |
-| `indexation` | Batch inspection data | Indexation status with coverage donut chart |
-| `full` | All data combined | Comprehensive Google SEO report (all sections) |
-
-**Workflow:**
-1. Run data collection commands (`pagespeed`, `gsc`, `inspect-batch`, etc.)
-2. Save JSON output to file: `python scripts/pagespeed_check.py <url> --json > data.json`
-3. Generate report: `python scripts/google_report.py --type cwv-audit --data data.json --domain <domain>`
-
-**Convention:** After completing analysis, suggest: "Generate a report? Use `report <type>`."
-
----
-
-## Rate Limits
-
-| API | Per-Minute | Per-Day | Auth |
-|-----|-----------|---------|------|
-| PSI v5 | 240 QPM | 25,000 QPD | API Key |
-| CrUX + History | 150 QPM (shared) | Unlimited | API Key |
-| GSC Search Analytics | 1,200 QPM/site | 30M QPD | Service Account |
-| GSC URL Inspection | 600 QPM | 2,000 QPD/site | Service Account |
-| Indexing API | 380 RPM | 200 publish/day | Service Account |
-| GA4 Data API | 10 concurrent | ~25K tokens/day | Service Account |
-
-## Cross-Skill Integration
-
-- **`seo-technical-audit`** — uses `pagespeed_check.py` for real CWV field data; uses `inspect` to confirm indexation status flagged by SE Ranking's audit.
-- **`seo-page`** — replaces estimated traffic with real GSC `query,page` data via `gsc`; confirms indexation via `inspect`.
-- **`seo-drift`** — adds `crux-history` (25-week trend) and GSC delta tracking to baseline/compare snapshots.
-- **`seo-sitemap`** — `sitemaps` command shows which sitemaps Google has actually consumed and their error/warning counts (vs SE Ranking's audit which only crawls).
-- **`seo-content-audit`** — `nlp` enhances E-E-A-T entity/sentiment scoring on the page being audited; `gsc` confirms whether the page is earning impressions for its target keywords.
-- **`seo-geo`** — `gsc --ai-overview --page <url>` answers "did this URL appear in AI Overview, and what did it earn?" with Google's own data, complementing the SE Ranking AIO citation pull. Pair `gsc --ai-overview --dimensions query,page` with the GEO recommendations to confirm wins/losses URL-by-URL.
-- **`seo-ai-search-share-of-voice`** — pair `ga4-referrals` (downstream traffic from chatgpt.com/perplexity.ai/gemini.google.com etc.) with the SoV pull (upstream citation/brand mention presence) for a complete AI-visibility picture: SoV measures whether LLMs cite you, GA4 referrals measure whether their users actually click through.
-- **`seo-keyword-cluster`** / **`seo-keyword-niche`** — `volume` (Tier 3) replaces SE Ranking volume with Google Ads gold-standard volumes when available.
-- **`seo-plan`** — when GSC + GA4 are configured, the "Where you are" baseline uses real impressions/clicks/conversions instead of SE Ranking estimates.
+## Command details
+
+Each API group has a full reference under `references/` — load it for parameters, response shapes, and edge cases. Scripts live under `E:\DonnaProSEO\scripts\`; invoke them as `python E:\DonnaProSEO\scripts\<name>.py` (Windows host — not `python3`, not a relative path). Only the non-obvious invocation details are called out below.
+
+### PageSpeed + CrUX (Tier 0) — `references/pagespeed-crux-api.md`
+- `pagespeed <url>` → `pagespeed_check.py <url> --json`. Both mobile + desktop, all Lighthouse categories; merges lab scores with 28-day field data (CrUX tries URL-level, falls back to origin).
+- `crux <url>` → `pagespeed_check.py <url> --crux-only --json` (field data only, faster).
+- `crux-history <url>` → `crux_history.py <url> --json` (25-week trend: direction, % change, weekly p75).
+
+### Search Console (Tier 1) — `references/search-console-api.md`
+- `gsc <property>` → `gsc_query.py --property <property> --json`. Default 28 days, dimensions=query,page, type=web, limit=1000; flags quick wins (position 4–10, high impressions). Filters: `--device`, `--country <ISO3>`, `--page <url|substr>` (`--page-match equals` for exact). `--ai-overview`/`--ai-mode` scopes to AI Overview / AI Mode appearances (Google's first-party "are we cited in AI Overview?"); `--search-appearance <value>` for other appearance types (RICH_RESULT, REVIEW_SNIPPET, …).
+- `inspect <url>` → `gsc_inspect.py <url> --json` (real index verdict, coverage, canonical, mobile usability, rich results).
+- `inspect-batch <file>` → `gsc_inspect.py --batch <file> --json` (one URL/line; 2,000/day per site).
+- `sitemaps <property>` → `gsc_query.py sitemaps --property <property> --json`.
+
+### Indexing API (Tier 1) — `references/indexing-api.md`
+- `index <url>` → `indexing_notify.py <url> --json`. Officially JobPosting + BroadcastEvent/VideoObject only — always tell the user. Quota 200 publish/day.
+- `index-batch <file>` → `indexing_notify.py --batch <file> --json` (tracks quota).
+
+### GA4 traffic (Tier 2) — `references/ga4-data-api.md`
+All reports accept `--page <path|url>` (EXACT match on `landingPage`; URLs auto-stripped to path). `--report organic`/`top-pages` accept `--channel <name|all>` (default Organic Search; `all` drops the filter — needed for whole-page trends when traffic is mostly Direct/Referral, the AI-cited-content case).
+- `ga4` → `ga4_report.py --property <id> --json` (daily time series; 28 days, Organic Search).
+- `ga4-pages` → `ga4_report.py --property <id> --report top-pages --json`.
+- `ga4-referrals` → `ga4_report.py --property <id> --report referrals --json`. `--sources ai|all|<csv>` (default `ai` = curated AI-assistant hostnames). Measures users sharing your links in AI chats, not proactive AI citation.
+- `ga4-channel-mix` → `ga4_report.py --property <id> --report channel-mix --json` (sessions by channel group + share%; AI traffic often lands in Direct — pair with `ga4-referrals`).
+- `ga4-properties` → `ga4_admin.py properties --json` (enumerate readable properties; requires the Google Analytics Admin API enabled, separate from the Data API).
+
+### YouTube (Tier 0) — `references/youtube-api.md`
+- `youtube <query>` → `youtube_search.py search "<query>" --json` (100 units/search; 10k/day free).
+- `youtube-video <id>` → `youtube_search.py video <id> --json` (2 units; details + top comments).
+
+### NLP content analysis (Tier 0) — `references/nlp-api.md`
+- `nlp <url|text>` → `nlp_analyze.py --url <url> --json` (or `--text "..."`). Entities + sentiment + classification. Free tier 5,000 units/month; requires billing enabled on the GCP project.
+- `entities <url|text>` → `nlp_analyze.py --url <url> --features entities --json` (faster, less quota).
+
+### Keyword research — Google Ads (Tier 3) — `references/keyword-planner-api.md`
+- `keywords <seed>` → `keyword_planner.py ideas "<seed>" --json` (needs Ads developer token + customer ID).
+- `volume <keywords>` → `keyword_planner.py volume "<kw1>,<kw2>" --json`.
+
+### Supplementary (Tier 0) — `references/supplementary-apis.md`
+- `entity <query>` → Knowledge Graph entity check (brand presence).
+- `safety <url>` → Web Risk malware / social-engineering check.
+- `quotas` → rate-limits table; see `references/rate-limits-quotas.md`.
+
+### Reports
+After any analysis command, offer a report. `report <type>` → `google_report.py --type <type> --data <json> --domain <domain> --format pdf`. Types: `cwv-audit` (PSI+CrUX+history), `gsc-performance` (GSC queries + quick wins), `indexation` (batch inspection + coverage donut), `full` (all sections). Workflow: run a collection command → save JSON to a file → generate the report. Templates in `assets/templates/`.
+
+## Rate limits & cross-skill integration
+
+- Per-API rate limits and daily quotas: `references/rate-limits-quotas.md` (or run `quotas`).
+- How each SEO skill consumes this one (per-skill enrichment recipes and tier branches): `references/cross-skill-integration.md`.
 
 ## Output Format
 

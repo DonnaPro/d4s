@@ -1,8 +1,8 @@
 # Audit issue severity mapping
 
-> Updated 2026-05-01 with IndexNow, extended security headers, and Dec-2025 JS-SEO risks (currency parity with `AgriciDaniel/claude-seo`).
+> Covers crawlability, indexability, security (incl. extended headers), mobile, structured data, content, performance, JS-rendering risks, and IndexNow. Guidance current as of 2026-05-01 — re-verify severity/fix advice against current search-engine documentation.
 
-Maps SE Ranking's audit issue codes (and common issue names) to severity, suggested fix, and effort estimate. Used by `seo-technical-audit` to score impact × effort and produce the top-10 fix list.
+Maps common audit issue codes and issue names to severity, suggested fix, and effort estimate. Used by `seo-technical-audit` to score impact × effort and produce the top-10 fix list. This file also holds the **detection detail** (criteria, order, thresholds) for the security-header, JS-rendering, and IndexNow checks so the `SKILL.md` steps can point here instead of re-listing them.
 
 ## Severity scale
 
@@ -58,6 +58,8 @@ Maps SE Ranking's audit issue codes (and common issue names) to severity, sugges
 | `referrer_policy_missing` | Referrer-Policy header absent | Low | Add `Referrer-Policy: strict-origin-when-cross-origin` (or stricter) | S |
 | `hsts_no_preload` | HSTS present but `preload` directive absent and domain not on Chromium HSTS preload list | Low | Add `preload` directive (`max-age≥31536000; includeSubDomains; preload`) and submit to hstspreload.org | S |
 
+**Detection (extended security headers).** WebFetch the homepage plus 3 sample URLs (top-traffic landing pages; fall back to homepage + key pages), read the response headers and flag: `csp_missing` (no `Content-Security-Policy`), `xframe_missing` (no `X-Frame-Options` — informational, CSP `frame-ancestors` supersedes), `xcontent_missing` (`X-Content-Type-Options` not `nosniff`), `referrer_policy_missing` (no `Referrer-Policy`), `hsts_no_preload` (`Strict-Transport-Security` present but no `preload` directive AND domain not on the Chromium HSTS preload list). Surface in `evidence/02-issues-by-category/security.md` and inline into TECH-AUDIT.md "By category → Security".
+
 ### Mobile
 
 | Issue | Severity | Fix | Effort |
@@ -102,9 +104,17 @@ Maps SE Ranking's audit issue codes (and common issue names) to severity, sugges
 | Uncompressed images | Medium | Compress and convert to WebP/AVIF | M |
 | Missing caching headers | Low | Add `Cache-Control` to static assets | S |
 
-### JS Rendering (Dec-2025 risks)
+### JS Rendering (rendering-budget, hydration/canonical, CSR meta-drift, soft-404)
 
-Per Google's December 2025 JavaScript SEO guidance update — four risks the SE Ranking crawler can't see (it doesn't execute JS). Detected via Firecrawl in step 8 of `SKILL.md` by comparing initial HTML against the JS-rendered DOM.
+Four JS-rendering risks a static crawler / `on_page_instant_pages` can't see (it doesn't execute JS). Detected via Firecrawl in step 8 of `SKILL.md` by comparing initial HTML against the JS-rendered DOM.
+
+**Detection.** Pick 5 sample URLs from the analysis set (bias toward high-traffic landing pages and pages already flagged for noindex/canonical issues). For each:
+- `js_canonical_mismatch` — compare `metadata.canonical` (after JS render) against the canonical recorded in step 5; flag any divergence.
+- JS-rendered `noindex` — check `metadata.robots` for `noindex` after render (catches client-side-only injection).
+- `X-Robots-Tag` — read response headers from `metadata`; flag `noindex`/`nofollow`/`none` at the HTTP layer.
+- `js_render_budget` — flag when rendered HTML is <50% of initial HTML size after JS execution.
+- `js_csr_meta_drift` — diff initial-HTML `<title>`, `<h1>`, `<meta name="description">` against the JS-rendered DOM; flag any divergence.
+- `js_soft_404` — flag rendered pages with <500 chars body text but HTTP 200.
 
 | Issue code | Issue | Severity | Fix | Effort |
 |---|---|---|---|---|
@@ -116,6 +126,8 @@ Per Google's December 2025 JavaScript SEO guidance update — four risks the SE 
 ### IndexNow
 
 Bing/Yandex/Naver-only signal — Google does not honour IndexNow. Low-severity by default (Bing-only benefit), but configuration mismatches are a Medium issue because they advertise the wrong key to crawlers.
+
+**Detection.** IndexNow advertises its key one of three ways — check in this order: (1) `/robots.txt` (already fetched in step 7) for an `IndexNow:` directive or comment referencing the key-file path; (2) homepage response headers for `x-indexnow-key`, `x-indexnow`, or `x-indexnow-key-location`; (3) WebFetch `/<key>.txt` if a key was hinted in (1) or (2). Detect the last-key-rotation date where possible via the key file's `Last-Modified` response header. Surface in `evidence/02-issues-by-category/security.md` (or a new `indexnow.md` if findings are non-trivial) and add a row to the TECH-AUDIT.md Modern signals section.
 
 | Issue code | Issue | Severity | Fix | Effort |
 |---|---|---|---|---|

@@ -11,3 +11,13 @@ dist/
 __pycache__/
 *.pyc
 *.pyo
+
+# Local Claude settings (may contain API keys)
+.claude/settings.local.json
+
+# Skill run outputs — never commit
+output/
+articles/
+seo-page-*/
+seo-*-20[0-9][0-9][0-9][0-9][0-9][0-9]/
+.firecrawl/

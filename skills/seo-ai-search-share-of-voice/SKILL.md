@@ -1,99 +1,56 @@
 ---
 name: seo-ai-search-share-of-voice
-description: Measure AI Search share of voice for a target domain versus competitors across ChatGPT, Perplexity, Gemini, Google AI Overview, and AI Mode. Pulls the AIO leaderboard, then samples prompts where each domain appears as a source or brand mention, and analyses topic clusters each brand owns. Use when the user asks for AI Search share of voice, LLM visibility tracking, AEO/GEO analysis, AI Overview competitive analysis, or wants to know which brands LLMs cite in their category.
+description: Measure AI Search share of voice for a target domain/brand versus competitors across ChatGPT and Google AI Overviews (the two platforms DataForSEO LLM Mentions supports), using aggregated mention metrics plus sampled prompts, and analyse topic clusters each brand owns. Also runs a single-brand mentions monitor ("when, how often, and on which queries is my brand mentioned"). Domain-level; for one URL use seo-geo. Use when the user asks for AI Search share of voice, LLM visibility tracking, brand mentions in AI/ChatGPT, AEO analysis, AI Overview competitive analysis, or which brands LLMs cite in their category.
 ---
 
 > Example output: [examples/seo-ai-search-share-of-voice-wix-com-20260427/REPORT.md](../../examples/seo-ai-search-share-of-voice-wix-com-20260427/REPORT.md)
 
 # AI Search Share of Voice
 
-Compare AI-search visibility for a target brand against competitors across every major LLM engine, then analyse the topic clusters each brand owns and where gaps exist.
+Compare AI-search visibility for a target brand against competitors on the two platforms DataForSEO covers — `chat_gpt` and `google` (AI Overviews) — or monitor a single brand's LLM mentions over time. Never claim Perplexity/Gemini/AI Mode coverage; the data source does not include them.
 
 ## Prerequisites
 
-- DataForSEO MCP server connected.
-- User provides: (a) target domain and its brand name, (b) list of competitor domains and brand names, (c) country (default: `us`), and (d) optionally, which engines to analyse (default: all supported: `ai-overview`, `chatgpt`, `perplexity`, `gemini`, `ai-mode`).
+- DataForSEO MCP server connected. LLM Mentions API is pay-as-you-go (no monthly minimum since 2026-07-01).
+- Market defaults per `CLAUDE.md` (UK unless the user says otherwise).
+- User provides: (a) target domain **and** brand name (both matter — pass the domain as `domain` and the brand as `keyword` targets), (b) for compare mode, competitor domains + brand names. If competitors are omitted, run **monitor mode** (single brand).
+- Preflight per `skills/seo-firecrawl/references/preflight.md`. Typical calls: monitor mode ~4–6; compare mode ~6–10 (aggregate endpoints do most of the work — avoid per-domain sampling loops).
 
 ## Process
 
-1. **Leaderboard snapshot** `ai_opt_llm_ment_top_domains`
-   - Pull the AIO leaderboard for the target domain's category in the target country.
-   - Capture mention counts and share percentages per engine, per domain.
+### Mode A — Monitor (single brand: "when / how often / on what queries is {brand} mentioned?")
 
-2. **Heatmap table**
-   - Build a table: rows = domains (target + competitors), columns = engines, cells = % share of voice.
-   - Highlight the leader per engine and the worst performer.
+1. **Aggregate footprint** `ai_opt_llm_ment_agg_metrics` — one call per platform (`chat_gpt`, then `google`), target array containing both `{domain: target.com}` and `{keyword: "{Brand}"}`. Capture mention counts and AI search volume.
+2. **Which prompts/pages** `ai_opt_llm_ment_search` — one call per platform, same targets, `limit: 25`, ordered by `ai_search_volume,desc`. Save prompt/page text and cited sources verbatim to `evidence/`.
+3. **Topic grouping** — group the returned prompts by theme (pricing, comparisons, tutorials, alternatives, reviews). No extra API calls.
+4. Report when (recency fields where present), how often (aggregate counts per platform), and on which queries — plus the 5 highest-volume prompts the brand is *absent* from that it plausibly should own (from category-level queries in step 2, if visible).
 
-3. **Prompt sampling per domain** `ai_opt_llm_ment_search`
-   - For each domain (target and each competitor):
-     - Pull 10 ChatGPT prompts where the domain appears as a source (link mention).
-     - Pull 10 ChatGPT prompts where the brand is mentioned by name.
-   - Save query text and the exact sources cited so the user can validate.
+### Mode B — Compare (target vs competitors)
 
-4. **Topic clustering**
-   - Group prompts by theme (e.g., pricing, feature comparison, tutorials, alternatives, reviews).
-   - For each brand, note which clusters it dominates and which it is absent from.
-
-5. **Gap and recommendation synthesis**
-   - Identify 3 to 5 topic clusters where the target underperforms competitors despite having relevant content.
-   - Recommend specific actions: new content angles, structured data additions, partnerships with frequently-cited sources, comparison pages, FAQ/How-To schema.
+1. **Cross-brand aggregates** `ai_opt_llm_ment_cross_agg_metrics` — one call per platform. `targets`: one entry per brand (`aggregation_key` = brand name; `target` = its domain + brand-name keyword). This single call yields the share-of-voice table per platform — do not reconstruct it from per-domain sampling.
+2. **Leaderboard context** `ai_opt_llm_ment_top_domains` — one call for the category, to place the target among domains the user didn't list.
+3. **Heatmap table** — rows = brands, columns = the two platforms, cells = share %. Highlight leader and worst performer.
+4. **Prompt sampling** `ai_opt_llm_ment_search` — only for the target and the top competitor (not every domain), `limit: 15` per platform. Save query text + cited sources for validation.
+5. **Topic clustering & gap synthesis** — group sampled prompts by theme; identify 3–5 clusters where the target underperforms despite relevant content; recommend actions (content angles, schema, comparison pages, citations from frequently-cited sources).
 
 ## Output format
 
-Create a folder `seo-ai-search-share-of-voice-{target-slug}-{YYYYMMDD}/` with:
+Folder `output/seo-ai-search-share-of-voice-{target-slug}-{YYYYMMDD}/`:
 
 ```
-seo-ai-search-share-of-voice-{target-slug}-{YYYYMMDD}/
-├── 01-leaderboard.md         # raw leaderboard per engine
-├── 02-heatmap.md             # visual heatmap table
-├── 03-prompts-{domain}.md    # one file per domain with 20 sampled prompts
-├── 04-topic-clusters.md      # cluster membership per brand
-└── REPORT.md                 # executive summary
+├── evidence/                  # raw API payloads
+├── 01-aggregates.md           # agg / cross-agg metrics per platform
+├── 02-prompts-{brand}.md      # sampled prompts (sampled brands only)
+├── 03-topic-clusters.md       # cluster membership per brand (compare mode)
+└── REPORT.md                  # executive summary
 ```
 
-`REPORT.md` follows this shape:
-
-```markdown
-# AI Search Share of Voice: {target brand} vs competitors
-
-## Summary
-- Target: {target} ({share}% across all engines)
-- Leader: {leader brand} ({share}%)
-- Target rank: {n} of {total}
-
-## Heatmap
-
-| Domain | AI Overview | ChatGPT | Perplexity | Gemini | AI Mode |
-|---|---|---|---|---|---|
-| {target} | {%} | {%} | {%} | {%} | {%} |
-| {comp1} | ... | ... | ... | ... | ... |
-
-## Who owns what
-
-### {target brand}
-Strong in: {cluster 1}, {cluster 2}
-Absent from: {cluster 3}, {cluster 4}
-
-### {competitor 1 brand}
-...
-
-## Topic cluster ownership
-
-| Cluster | Leader | Share | Target position | Gap |
-|---|---|---|---|---|
-| Pricing | {brand} | {%} | {n} | {% behind} |
-| Alternatives | {brand} | {%} | {n} | {% behind} |
-| Tutorials | {brand} | {%} | {n} | {% behind} |
-
-## Top 5 actions to close gaps
-1. {action with target cluster}
-2. ...
-```
+`REPORT.md`: summary (target share, leader, rank), heatmap table (columns: **ChatGPT | Google AI Overviews** only), who-owns-what by cluster, top-5 actions. In monitor mode: mention counts per platform, top mentioned queries/pages, themes, absence gaps.
 
 ## Tips
 
-- Do not hallucinate citation counts. If the API returns zero prompts for a given domain/engine, report zero, do not estimate.
-- For each competitor, validate the brand-name match in the prompt text. Sometimes "Wix" appears in a sentence about "wiktionary" or a person's name. Flag ambiguous matches in the raw-prompt file.
-- `base_domain` scope is the default; do not narrow to `subdomain` unless the user asks.
-- Respect DataForSEO Data API rate limit: 10 requests per second. With 5 domains and 2 prompt queries per engine per domain, pace the loop.
-- The report is not a one-time artefact. Recommend the user re-run monthly and diff results to see ranking momentum.
+- Do not hallucinate counts. Zero results = report zero. Small brands (like donnapro.com today) commonly have zero or near-zero LLM mentions — that is itself the finding; recommend a baseline re-run monthly and diff.
+- Validate brand-name keyword matches in prompt text (e.g., "Donna" as a person's name is not a DonnaPro mention). Flag ambiguous matches in the evidence file.
+- `base_domain` scope is the default; don't narrow to `subdomain` unless asked.
+- Platforms are exactly `chat_gpt` and `google`. If the user asks about Perplexity/Gemini, say the data source doesn't cover them rather than substituting.
+- Multi-market: run per `CLAUDE.md` reporting groups only on explicit request — each market multiplies the platform calls.

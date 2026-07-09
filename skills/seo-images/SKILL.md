@@ -11,113 +11,67 @@ A focused, page-level (or domain-sample) audit of every `<img>` and `<picture>` 
 
 ## Prerequisites
 
-- **Required for inventory:** `mcp__firecrawl-mcp__firecrawl_scrape` (raw HTML access). `WebFetch` returns markdown only — every `<img>` attribute (`srcset`, `sizes`, `loading`, `fetchpriority`, `width`, `height`, `data-src*` lazy variants) is stripped before the skill ever sees it. Without Firecrawl the audit cannot run. Install via `bash extensions/firecrawl/install.sh`.
-- **Optional (PSI byte-saving estimates):** `google-api.json` configured (Tier 0 — API key only). When present, step 9 runs and adds real Lighthouse `wastedBytes` per image to the remediation list.
+- **Required for inventory: any Firecrawl scrape capability** — the `mcp__firecrawl-mcp__firecrawl_scrape` MCP tool, the `firecrawl:firecrawl-scrape` skill, or the Firecrawl CLI all work; use whichever is available in the session. Raw HTML access is what matters: `WebFetch` returns markdown only, stripping every `<img>` attribute (`srcset`, `sizes`, `loading`, `fetchpriority`, `width`, `height`, `data-src*` lazy variants) before the skill sees it. If no Firecrawl scrape capability exists at all, tell the user the audit cannot run and surface the install hint (`bash extensions/firecrawl/install.sh`) — don't hard-require one specific tool id.
+- **Optional (PSI byte-saving estimates):** `google-api.json` configured (Tier 0 — API key only). When present, step 9 runs and adds real Lighthouse `wastedBytes` per image to the remediation list. (Not configured on this machine — see `CLAUDE.md § Environment notes`.)
 - **Optional (DataForSEO on-page cross-reference):** DataForSEO MCP server connected. When present, step 10 elevates image-related on-page issues onto the same remediation list.
 - User provides: a target URL (single-page audit) or a domain (sampled audit). For domains, the skill confirms how many pages to sample before spending Firecrawl credits.
+- Market: per `CLAUDE.md` defaults (UK unless the user specifies) for any DataForSEO calls.
 
 ## Process
 
 1. **Validate target & preflight.** Normalise the URL (strip trailing slash, decode IDN). Resolve mode:
    - **URL mode** (default for inputs that look like a single page): the target is one URL. Cost: 1 Firecrawl credit + optional PSI calls.
    - **Domain mode** (input is a bare domain or the user explicitly asks for a domain-wide audit): map first, then scrape a sample.
-   - **Preflight checks** (mirror `skills/seo-firecrawl/references/preflight.md` where it applies):
-     - Confirm Firecrawl is connected. If not, abort with the install command and stop.
-     - If Google APIs are wired up (`~/.config/seo-skills/google-api.json` present), record the detected tier; step 9 will use it. If not, mark step 9 as skipped.
-     - If DataForSEO MCP is connected, mark step 10 as available. If not, mark step 10 as skipped.
+   - **Preflight.** See `skills/seo-firecrawl/references/preflight.md` (budget guard, Firecrawl availability, Google APIs) and `CLAUDE.md` (market defaults, cost discipline). Skill-specific notes:
+     - Typical DataForSEO calls for this skill: 0–2 (optional step 10 cross-reference; sampling helper in domain mode).
+     - Firecrawl: **required** — any scrape capability counts (MCP tool, `firecrawl:firecrawl-scrape` skill, or CLI). Without it the audit cannot run; explain why and stop after surfacing the install hint.
+     - Google APIs: Tier 0 (PSI, step 9) — optional; skip and note when not configured.
 
-2. **Gather image inventory** `mcp__firecrawl-mcp__firecrawl_scrape` (URL mode) or `firecrawl_map` + `firecrawl_scrape` (domain mode)
+2. **Gather image inventory** (Firecrawl scrape in URL mode; map + scrape sample in domain mode)
    - **URL mode:** scrape the target with `formats: ["html", "markdown"]` and `onlyMainContent: false` (we want nav/footer images too — hero logo, footer trust badges, decorative imagery all matter for the audit). For SPAs, pass `waitFor: 2000` so lazy-injected images appear in the rendered DOM. Parse every `<img>` and every `<picture>` from the returned `html`. Capture per image:
      - `src`, `srcset`, `sizes`, `alt`, `loading`, `fetchpriority`, `decoding`, `width`, `height`, `role`, `aria-hidden`
-     - Lazy-loader attributes: `data-src`, `data-srcset`, `data-lazy-src`, `data-original`, `data-perfmatters-src`, `data-perfmatters-srcset`, `data-ewww-src`, `data-eio`
-     - Class signals: `lazyload`, `lazyloaded`, `lazy`, `perfmatters-lazy`, `lazyload-eio`
+     - Lazy-loader attributes and class signals per `references/lazy-loaders.md`'s taxonomy
      - Parent `<picture>` `<source>` entries: `type`, `srcset`, `media`
      - Resolved absolute URL (for cross-origin / CDN detection)
-   - **Domain mode:** run `firecrawl_map` (default `limit: 500`, hard cap; cost: ~0.5 credit per discovered URL — surface the estimate before running). From the URL list, select a sample of up to 10 pages: homepage, plus the top traffic landing pages (from `dataforseo_labs_google_ranked_keywords`'s page aggregation if DataForSEO is connected, otherwise the deepest-nested URLs found in the sitemap — these are usually the content pages, not category indexes). Confirm the sample list and credit cost before scraping. Then scrape each (1 credit per page). Inventory is the union of every image on the sampled pages.
-   - **CSS background-images:** flag as a known blind spot. We don't audit `background-image: url(...)` in stylesheets — those are not crawlable as content images by Google and don't get image-search visibility. Surface "{n} likely background-images detected (computed style references) — out of scope for this audit; review separately if hero/feature images are CSS-based" in the synthesis.
+   - **Domain mode:** run `firecrawl_map` (default `limit: 500`, hard cap; cost: ~0.5 credit per discovered URL — surface the estimate before running). From the URL list, select a sample of up to 10 pages: homepage, plus the top traffic landing pages (from `dataforseo_labs_google_ranked_keywords`'s page aggregation if DataForSEO is connected — set `limit` and filters per `CLAUDE.md` — otherwise the deepest-nested URLs found in the sitemap). Confirm the sample list and credit cost before scraping. Then scrape each (1 credit per page). Inventory is the union of every image on the sampled pages.
+   - **CSS background-images are a known blind spot** (this is the only place this caveat lives): `background-image: url(...)` in stylesheets is not audited — those aren't crawled as content images by Google and get no image-search visibility. Count likely occurrences and surface "{n} likely background-images detected — out of scope; review separately if hero/feature images are CSS-based" in the synthesis.
 
-3. **Alt-text audit**
-   - Load `references/image-checks.md` § Alt text. For each image:
-     - **Presence:** missing `alt` (not `alt=""` — the empty-string form is valid for purely decorative images). Severity High.
-     - **Decorative-but-not-marked:** `alt=""` is fine only if the image is genuinely decorative. Flag images with `alt=""` that also have a non-decorative `src` (e.g. product photo path, hero image path) as "verify decorative intent" (Medium).
-     - **Generic text:** `alt` value matches a generic pattern — bare filename (`image.jpg`, `IMG_1234.png`), single generic noun (`photo`, `picture`, `image`, `banner`), CTA copy (`click here`, `read more`, `learn more`). Severity High.
-     - **Length:** `alt` outside the 10–125 character window. Below 10 → Medium (probably not descriptive). Above 125 → Low (likely too verbose; screen readers truncate around there).
-     - **Keyword stuffing:** the same keyword token appears 3+ times in the alt, or the alt is >50% keyword tokens. Severity Medium.
-     - **Identical alt across multiple images on the page:** flag as a templating bug (Medium) — every product photo on a PDP should not share the same alt.
+3. **Alt-text audit.** Apply `references/image-checks.md` § Alt text — every check, issue code, severity, and the good/bad examples live there. Evaluate each image against the full rubric (presence, decorative intent, generic text, length window, keyword stuffing, duplicate alts across the page).
 
-4. **Format coverage (WebP / AVIF)**
-   - For each image, classify its served format from `src` extension (`.webp`, `.avif`, `.jpg`/`.jpeg`, `.png`, `.gif`, `.svg`) and `<picture>` `<source>` `type` attributes (`image/avif`, `image/webp`).
-   - Compute three coverage metrics for the page (or domain sample):
-     - **% images served as WebP or AVIF directly** (via the chosen `<img src>` or chosen `<picture>` `<source>`).
-     - **% images wrapped in `<picture>` with at least one modern-format `<source>`** (progressive enhancement — fallback chain).
-     - **% images stuck on legacy formats** (JPEG / PNG / GIF) with no modern alternative.
-   - Per-image flags:
-     - Legacy format with no `<picture>` modern alternative → `image_legacy_format` (Medium).
-     - Animated GIF over 500 KB → recommend video (`<video autoplay muted loop playsinline>`) instead (Medium — performance + LCP impact). Source: Google PSI `efficient-animated-content` audit.
-     - SVG used for photographic content → `image_svg_misuse` (Low — file size will be enormous; SVG is for icons/illustrations).
-   - **JPEG XL note.** Chromium announced restoration of JPEG XL decoding (Rust-based) in November 2025 but it's not yet in Chrome stable. Surface as a Tips note: not actionable today, monitor for 2026.
+4. **Format coverage (WebP / AVIF).** Classify each image's served format from the `src` extension and `<picture>` `<source>` `type` attributes, then compute three page-level (or sample-level) coverage metrics:
+   - % images served as WebP or AVIF directly,
+   - % images wrapped in `<picture>` with at least one modern-format `<source>`,
+   - % images stuck on legacy formats with no modern alternative.
+   Per-image flags (legacy format, oversized animated GIF, SVG misuse, oversized files): apply `references/image-checks.md` § Format hierarchy and § File size. For formats beyond WebP/AVIF (JPEG XL etc.), check caniuse for current browser support before recommending anything — don't rely on remembered support claims.
 
-5. **Responsive coverage (`srcset` / `sizes`)**
-   - For each non-SVG raster image:
-     - Missing `srcset` → `image_no_srcset` (Medium). Browser cannot pick a size-appropriate file; mobile users download desktop-sized images.
-     - `srcset` present but no `sizes` and not inside `<picture>` → `image_no_sizes` (Medium). Browser falls back to viewport width assumptions and can pick the wrong candidate.
-     - `srcset` declared but all candidates are the same width descriptor (`1x` only, or all `w` values within 100 px of each other) → `image_srcset_useless` (Low).
+5. **Responsive coverage (`srcset` / `sizes`).** Apply `references/image-checks.md` § Responsive sizing to each non-SVG raster image (missing `srcset`, `srcset` without `sizes`, useless candidate ranges).
 
 6. **Lazy loading & LCP signals**
-   - For each image, classify the lazy-loading mechanism using `references/lazy-loaders.md`'s taxonomy: `native` / `perfmatters` / `ewww` / `js-generic` / `none`. Report `lazy_method` alongside `loading` so a JS-loader-driven page isn't mis-flagged for missing `loading="lazy"` (the native attribute is intentionally absent there — the loader handles it).
+   - Classify each image's lazy-loading mechanism using `references/lazy-loaders.md`'s taxonomy: `native` / `perfmatters` / `ewww` / `js-generic` / `none`. Report `lazy_method` alongside `loading` so a JS-loader-driven page isn't mis-flagged for missing `loading="lazy"`.
    - **LCP-candidate heuristic.** The LCP image is typically the first `<img>` that:
      - Appears above the fold on a typical mobile viewport (no exact viewport without rendering; heuristic = first `<img>` in the rendered DOM that is not inside a `<header>` / `<nav>` / `<aside>` and has no `loading="lazy"` ancestor),
      - Has a large rendered area (width × height attributes both ≥ 300, or `<picture>` `<source>` with viewport-spanning `sizes`).
-   - For the LCP candidate:
-     - `loading="lazy"` set → `image_lcp_lazy` (High). Lazy-loading the LCP image directly harms LCP.
-     - No `fetchpriority="high"` → `image_lcp_no_fetchpriority` (Medium). Lighthouse's `prioritize-lcp-image` audit; setting `fetchpriority="high"` moves the LCP image to the front of the browser's network queue.
-   - For below-fold images (not the LCP candidate, not inside the first viewport):
-     - Neither native `loading="lazy"` nor any JS-loader signal → `image_below_fold_eager` (Medium). Below-fold images should defer.
-     - Missing `decoding="async"` → `image_no_decoding_async` (Low). Async decode prevents image decoding from blocking the main thread for non-LCP images.
+   - Flag the LCP candidate and below-fold images per `references/image-checks.md` § Lazy loading & LCP (`image_lcp_lazy`, `image_lcp_no_fetchpriority`, `image_below_fold_eager`, `image_no_decoding_async`).
 
-7. **CLS dimensions**
-   - For each image:
-     - Missing both `width` and `height` attributes AND no inline `aspect-ratio` style → `image_unsized` (High). The browser cannot reserve space; the image will shift content when it loads. Matches Lighthouse `unsized-images`.
-     - `width` and `height` present but the ratio mismatches the actual displayed ratio by >5% → `image_aspect_mismatch` (Low). Layout will shift on load.
-   - The fix for both is the same: set `width` and `height` attributes to the image's intrinsic dimensions, and let CSS handle responsive scaling.
+7. **CLS dimensions.** Apply `references/image-checks.md` § CLS dimensions (`image_unsized`, `image_aspect_mismatch`). The fix for both is the same: set `width`/`height` to intrinsic dimensions and let CSS scale responsively.
 
-8. **File-name quality**
-   - For each image's resolved URL, extract the filename. Flag:
-     - Camera-default names (`IMG_xxxx`, `DSC_xxxx`, `DSCN_xxxx`, `P_xxxx`, `Photo_xx`) → `image_camera_filename` (Low).
-     - Random-hash names (`a3f9b2c.jpg`, `0e8d1f7.webp` — hex/base64 patterns with no human-readable tokens) → `image_hash_filename` (Low). Common with image CDNs; verify there's no SEO-friendly version available.
-     - All-uppercase or all-underscore filenames → `image_filename_style` (Low). Convention is lowercase + hyphens.
-   - Don't flag every CDN-served image as a problem — many CMSes hash filenames for cache busting and that's fine. The signal is meaningful when paired with a missing or generic `alt` on the same image (the page has no signal at all about what the image depicts).
+8. **File-name quality.** Extract the filename from each image's resolved URL and apply `references/image-checks.md` § File names — including its "don't flag every CDN-hashed filename" caveat; the signal matters when paired with a missing/generic alt on the same image.
 
 9. **`ImageObject` JSON-LD: detect, validate, generate**
-   - **Detect:** parse every `<script type="application/ld+json">` block returned by Firecrawl. Find existing `ImageObject` blocks — either top-level (for image-search rich results) or nested under `Article.image`, `Product.image`, `Recipe.image`, etc.
-   - **Validate** against Google Images' guidelines (see `references/image-checks.md` § ImageObject for the field list). For a top-level `ImageObject`:
-     - Required: `@context`, `@type: ImageObject`, `contentUrl` (the image URL), `creator` or `copyrightHolder`.
-     - Recommended for licensable-images rich results: `license` (URL to the license terms), `acquireLicensePage` (URL where users can buy/license the image), `creditText` (how the creator should be credited).
-     - Common mistakes: `url` instead of `contentUrl`, `author` as a bare string instead of a `Person` / `Organization` object, dimensions as strings instead of `Number`.
-   - **Generate:** for each image that doesn't already have an `ImageObject` block AND that meets the "worth marking up" threshold (the image is the page's hero / first-fold and the page has a clear creator/owner), produce a paste-ready block from `templates/image-object.json`, filling in fields from the live HTML. Mark unresolved fields as `{REPLACE: ...}`. The generated file is emitted as `02-remediation/image-object.jsonld` (the `.jsonld` extension marks it as a deliverable for `<script type="application/ld+json">`).
-   - **Don't generate `ImageObject` for every `<img>`.** It's noise. Limit to the hero image and any image that should be eligible for licensable-images rich results.
+   - **Detect:** parse every `<script type="application/ld+json">` block returned by Firecrawl. Find existing `ImageObject` blocks — top-level or nested under `Article.image`, `Product.image`, `Recipe.image`, etc.
+   - **Validate** against `references/image-checks.md` § ImageObject (required/recommended fields, common mistakes).
+   - **Generate:** for each image that lacks an `ImageObject` block AND meets the "worth marking up" threshold (page hero / first-fold image with a clear creator/owner), produce a paste-ready block from `templates/image-object.json`, filling fields from the live HTML. Mark unresolved fields as `{REPLACE: ...}`. Emit as `02-remediation/image-object.jsonld`.
+   - **Don't generate `ImageObject` for every `<img>`.** Limit to the hero image and any image that should be eligible for licensable-images rich results.
 
 10. **Optional: PageSpeed Insights byte savings** *(only if `~/.config/seo-skills/google-api.json` is present, Tier ≥ 0)*
-    - Run `python3 scripts/pagespeed_check.py "{url}" --strategy=mobile --json` and `--strategy=desktop --json` (2 API calls per target URL — within PSI's 25k/day free quota).
-    - Pull the following audits from the JSON response and merge per-image `wastedBytes` into the remediation list:
-      - `modern-image-formats` — bytes savable by serving WebP/AVIF (overlaps with step 4; PSI's number is authoritative).
-      - `uses-optimized-images` — bytes savable by re-compressing.
-      - `uses-responsive-images` — bytes savable by serving size-appropriate files (overlaps with step 5).
-      - `offscreen-images` — bytes deferrable by lazy-loading below-fold images (overlaps with step 6).
-      - `unsized-images` — page elements missing dimensions (cross-checks step 7).
-      - `prioritize-lcp-image` — confirms or contradicts the step-6 LCP-candidate heuristic and gives PSI's authoritative LCP element.
-      - `efficient-animated-content` — confirms animated-GIF flagging from step 4.
-    - Each PSI audit returns `details.items[]` with `url` and `wastedBytes`. Join on image URL (resolved absolute) and tag each remediation row with `psi_wasted_bytes` so the prioritised list orders by real savings, not heuristic severity alone.
+    - Run `python E:\DonnaProSEO\scripts\pagespeed_check.py "{url}" --strategy=mobile --json` and `--strategy=desktop --json` (2 API calls per target URL — within PSI's 25k/day free quota).
+    - Pull the following audits from the JSON response and merge per-image `wastedBytes` into the remediation list: `modern-image-formats`, `uses-optimized-images`, `uses-responsive-images`, `offscreen-images`, `unsized-images`, `prioritize-lcp-image` (confirms or contradicts the step-6 LCP heuristic — PSI is authoritative), `efficient-animated-content`.
+    - Each PSI audit returns `details.items[]` with `url` and `wastedBytes`. Join on resolved absolute image URL and tag each remediation row with `psi_wasted_bytes` so the prioritised list orders by real savings, not heuristic severity alone.
     - **If PSI is configured but returns no audits** (likely a 4xx — usually a private/protected URL Lighthouse can't load): note "PSI: could not analyse {url} ({reason})" and continue with non-PSI signals.
 
 11. **Optional: DataForSEO on-page cross-reference** *(only if DataForSEO MCP is connected)*
-    - Use `on_page_instant_pages` on the target URL to retrieve on-page analysis results. If the URL hasn't been analysed recently (>30 days), skip this step rather than triggering a full crawl — that's `seo-technical-audit`'s call to make.
-    - For each image-related issue in the on-page results:
-      - Oversized / uncompressed images
-      - Missing alt text on images
-      - Broken image URLs (404 / 5xx)
-      - Images missing dimensions (CLS)
-    - Merge findings: for any image flagged by both the on-page analysis and this skill, elevate severity by one step. For any analysis-flagged URL that the Firecrawl sample didn't include, list it under "Analysis-flagged pages not in this sample" with a recommendation to re-run on those URLs specifically.
+    - Use `on_page_instant_pages` on the target URL (one URL per call — see `CLAUDE.md § DataForSEO cost discipline`) to retrieve on-page analysis results. If the URL hasn't been analysed recently (>30 days), skip this step rather than triggering a full crawl — that's `seo-technical-audit`'s call to make.
+    - For each image-related issue in the on-page results (oversized/uncompressed images, missing alt, broken image URLs, images missing dimensions): merge findings. For any image flagged by both the on-page analysis and this skill, elevate severity by one step. For any analysis-flagged URL the Firecrawl sample didn't include, list it under "Analysis-flagged pages not in this sample" with a recommendation to re-run on those URLs specifically.
 
 12. **Synthesise** `IMAGES.md`. Build the remediation table sorted by:
     1. Severity (Critical → High → Medium → Low),
@@ -126,10 +80,10 @@ A focused, page-level (or domain-sample) audit of every `<img>` and `<picture>` 
 
 ## Output format
 
-Create a folder `seo-images-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-images-{target-slug}-{YYYYMMDD}/` (per `CLAUDE.md § Output conventions`) with:
 
 ```
-seo-images-{target-slug}-{YYYYMMDD}/
+output/seo-images-{target-slug}-{YYYYMMDD}/
 ├── IMAGES.md                       (synthesised audit + remediation list — primary deliverable)
 ├── images.csv                      (every image with all audit columns — engineering pastes into Jira)
 ├── 01-inventory.md                 (per-page image list with raw attributes)
@@ -141,99 +95,21 @@ seo-images-{target-slug}-{YYYYMMDD}/
 └── 04-audit-cross-ref.md           (image-related on-page analysis issues — only if step 11 ran)
 ```
 
-`IMAGES.md` follows this shape:
-
-```markdown
-# Image SEO Audit: {URL or domain}
-
-> Snapshot dated {YYYY-MM-DD} · Mode: {URL | domain-sample (n pages)} · Images analysed: {n}
-
-## Coverage at a glance
-
-| Metric | Result |
-|---|---|
-| Total images | {n} |
-| Missing alt text | {n} ({pct}%) |
-| Generic / templated alt text | {n} ({pct}%) |
-| Modern format (WebP/AVIF) coverage | {pct}% direct, {pct}% via `<picture>` fallback |
-| `srcset` present (responsive) | {pct}% |
-| `loading` strategy detected | native: {pct}% · JS-loader: {pct}% · none: {pct}% |
-| LCP image flagged | {yes/no — element + risk} |
-| Unsized (CLS risk) | {n} ({pct}%) |
-| `ImageObject` JSON-LD | {present / partial / missing} |
-
-## Top 10 remediations (severity × byte savings)
-
-| Rank | Issue code | Severity | Images | PSI wastedBytes | Fix | Effort |
-|---|---|---|---|---|---|---|
-| 1 | image_lcp_lazy | High | 1 | 480 KB | Remove `loading="lazy"`; add `fetchpriority="high"` | S |
-| 2 | image_legacy_format | Medium | 14 | 2.1 MB | Convert to WebP, wrap in `<picture>` with fallback | M |
-| ... |
-
-## By category
-
-### Alt text ({n} issues)
-- {n} images missing `alt` entirely. See `02-remediation/alt-text-rewrites.md` for suggested rewrites.
-- {n} images with generic alt (`image.jpg`, `photo`, "click here").
-- {n} images with identical alt across multiple images (templating bug).
-
-### Format coverage ({pct}% modern)
-- {n} images stuck on legacy JPEG/PNG. See `02-remediation/picture-snippets.md`.
-- {n} animated GIFs >500 KB — recommend video.
-
-### Responsive sizing ({pct}% have `srcset`)
-- {n} images without `srcset`.
-- {n} images with `srcset` but no `sizes`.
-
-### Lazy loading & LCP
-- LCP candidate: `{img src or selector}` — {risk summary}.
-- {n} below-fold images loading eagerly.
-- {n} images missing `decoding="async"`.
-
-### CLS dimensions ({n} unsized)
-- {n} images without `width`/`height` attributes.
-- {n} images with aspect-ratio mismatches.
-
-### File names ({n} flagged)
-- {n} camera-default names (IMG_xxxx).
-- {n} hash-only filenames coupled with a missing/generic alt.
-
-### ImageObject JSON-LD
-- Currently present: {none | block-level on hero | partial}.
-- Recommended additions: {none | hero-image ImageObject for licensable-images rich result}.
-
-## Paste-ready remediations
-
-See `02-remediation/`:
-- `picture-snippets.md` — `<picture>` blocks for the top N legacy-format images.
-- `alt-text-rewrites.md` — alt-text rewrites for missing / generic cases.
-- `image-object.jsonld` — `ImageObject` block for the hero image.
-
-## Out of scope for this skill
-
-- **File-level optimisation** (running `cwebp` / `exiftool` / ImageMagick / `ffmpeg` against the actual binary). This skill audits markup and references; converting and re-uploading the files is engineering work — see the pipeline note in `references/image-checks.md` § Optimisation pipeline if you want a starting recipe.
-- **CSS background-images.** {n} likely background-image references detected via computed style, but not audited. They don't appear in Google Images and aren't subject to the `<img>`-tag rubric.
-- **Site-wide audit at >10 pages.** This is a sampled audit. For domain-level "every image on every page", run `seo-technical-audit` first to surface the audit-grade signals, then come back here for sample-level deep audit.
-
-## Recommended next steps
-
-- {`seo-technical-audit` if domain-wide image issues need to be quantified — uncompressed-images counts, etc.}
-- {`seo-schema` if `ImageObject` was generated and the page also needs `Article` / `Product` / etc. markup.}
-- {`seo-google pagespeed` for the full Lighthouse breakdown (this skill only pulls image-specific audits).}
-```
+`IMAGES.md` structure (load `templates/report.md` when writing the deliverable):
+- Header line: snapshot date, mode (URL vs domain-sample), images analysed.
+- "Coverage at a glance" metric table (alt coverage, modern-format %, srcset %, loading strategy, LCP flag, unsized count, ImageObject status).
+- "Top 10 remediations" table ranked by severity × PSI byte savings.
+- "By category" sections: alt text, format coverage, responsive sizing, lazy loading & LCP, CLS dimensions, file names, ImageObject.
+- Pointers to the paste-ready files in `02-remediation/`, an "Out of scope" note, and recommended next steps.
 
 `images.csv` columns: `page_url,image_url,alt,alt_length,alt_issue,format,in_picture,modern_source,srcset,sizes,loading,lazy_method,fetchpriority,decoding,width,height,unsized,lcp_candidate,filename_issue,psi_wasted_bytes,severity,fix,effort`.
 
 ## Tips
 
 - **Default to URL mode.** Single-page audits are 1 Firecrawl credit and produce a complete deliverable for the most common ask ("audit the images on /this/page"). Domain mode is for "give me a representative read on the whole site" — it surfaces patterns (templating bugs, CMS-wide missing alts) that single-page mode misses.
-- **`<picture>` is the right answer.** When recommending modern formats, always recommend the `<picture>` element with AVIF + WebP `<source>` and a JPEG fallback `<img>` — not raw `<img src=".avif">`. AVIF is at 93%+ support and WebP at 97%+, but the fallback is what makes the markup safe for older clients and crawlers.
-- **Don't lazy-load the LCP image.** This is the single most common image-SEO mistake on modern CMSes. Themes ship with site-wide `loading="lazy"` defaults that apply to the hero. The skill's LCP heuristic catches the most likely culprit; PSI (step 10) confirms it authoritatively.
-- **Empty `alt=""` is correct for purely decorative images** (a hairline-rule SVG, a pure background-spacer image). It tells screen readers to skip the image. Don't auto-flag every empty alt — flag only those where the image filename and context suggest the image carries content.
-- **Reverse the inventory if it's small.** For pages with <10 images, list every image with its full audit row in `IMAGES.md`'s "By category" section, not just the aggregate counts. Aggregate-only output is useful when there are 100+ images; below that it hides the specifics.
+- **`<picture>` is the right answer.** When recommending modern formats, always recommend the `<picture>` element with AVIF + WebP `<source>` and a JPEG fallback `<img>` — the fallback is what makes the markup safe for older clients and crawlers. Check caniuse for current support levels before recommending any format beyond WebP/AVIF.
+- **Reverse the inventory if it's small.** For pages with <10 images, list every image with its full audit row in `IMAGES.md`'s "By category" section, not just the aggregate counts. Aggregate-only output hides the specifics below ~100 images.
 - **PSI is rate-limited at 25k/day on the free tier** but counts requests, not images. Calling PSI twice per target URL (mobile + desktop) is the default; skip desktop if you only care about Google's mobile-first ranking signal.
-- **CSS background-images are a real blind spot** — flag the count, but don't audit them. They're not crawled as content images by Google.
-- **JPEG XL is not yet shippable** (Nov 2025 Chromium announcement restoring decoder support, not yet in stable Chrome). Don't recommend JPEG XL until it lands in stable. WebP and AVIF are the current safe modern formats.
 - **Don't auto-apply fixes.** The skill diagnoses and produces paste-ready snippets; humans decide which fixes to ship and in what order.
 - **Verify after deploy.** Re-run this skill on the same URL after the fixes ship — the new run's "Coverage at a glance" reflects the live state and confirms the markup actually changed (vs sitting in the CMS but not pushed).
 

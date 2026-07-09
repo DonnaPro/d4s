@@ -15,6 +15,8 @@ These thresholds drive the red / yellow / green coding in `DRIFT-REPORT.md`. Tun
 | Net backlinks | -50 to -200 | <-200 |
 | Loss of any DA-50+ referring domain | red regardless of count | — |
 
+**Authority-history all-zeros heuristic:** if `dataforseo_labs_google_historical_rank_overview` (domain mode) returns flat-zero values across the window, treat as "insufficient history" — do NOT compute a delta or code a regression from missing data. Cross-check the current-value endpoint (`dataforseo_labs_google_domain_rank_overview`); if the current value is meaningful but history is flat, surface a data-quality flag in `DRIFT-REPORT.md` rather than fabricating a trend.
+
 ## Page-level (when target is a single URL)
 
 | Metric | Yellow | Red |
@@ -60,7 +62,7 @@ These thresholds drive the red / yellow / green coding in `DRIFT-REPORT.md`. Tun
 | TTFB p75 increase | ≥20% | ≥30% |
 | 25-week CrUX trend reversal (improving → degrading) | yellow | — |
 
-**Cross-reference:** when an LCP / INP / CLS field-data drift fires, deep-dive with `seo-google` directly: `python3 scripts/pagespeed_check.py {url} --json` (Lighthouse + CrUX combined view) for waterfall / opportunity-list context. Mirrors theirs at `seo-drift/references/comparison-rules.md:88`.
+**Cross-reference:** when an LCP / INP / CLS field-data drift fires, deep-dive with `seo-google` directly: `python E:\DonnaProSEO\scripts\pagespeed_check.py {url} --json` (Lighthouse + CrUX combined view) for waterfall / opportunity-list context.
 
 ## Indexation drift (GSC URL Inspection) — URL mode only, Tier 1+
 
@@ -72,7 +74,7 @@ These thresholds drive the red / yellow / green coding in `DRIFT-REPORT.md`. Tun
 | `lastCrawlTime` >60 days old (Google hasn't visited recently) | yellow |
 | `coverageState` text changed (e.g. "Submitted and indexed" → "Crawled - currently not indexed") | red |
 
-**Cross-reference:** when indexation drift fires, deep-dive with `python3 scripts/gsc_inspect.py {url} --json` for Google's full verdict and any associated rich-result issues, then run `python3 scripts/gsc_query.py --property {property} --url {url} --json` to see whether the change correlates with impression / click drops over the same window.
+**Cross-reference:** when indexation drift fires, deep-dive with `python E:\DonnaProSEO\scripts\gsc_inspect.py {url} --json` for Google's full verdict and any associated rich-result issues, then run `python E:\DonnaProSEO\scripts\gsc_query.py --property {property} --url {url} --json` to see whether the change correlates with impression / click drops over the same window.
 
 ## What to investigate first
 
