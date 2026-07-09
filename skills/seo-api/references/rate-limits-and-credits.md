@@ -220,7 +220,7 @@ class DataForSEOClient:
 # Usage
 client = DataForSEOClient(rpm=60)
 result = client.post("/dataforseo_labs/google/domain_rank_overview/live", [
-    {"target": "acme.com", "location_code": 2840, "language_code": "en"}
+    {"target": "acme.com", "location_code": 2826, "language_code": "en"}
 ])
 ```
 

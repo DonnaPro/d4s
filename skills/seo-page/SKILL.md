@@ -12,7 +12,7 @@ Show what a single URL ranks for, what traffic it captures, where its weak and s
 
 - DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available (for the page-level HTML sense-check).
-- User provides: (a) a target URL, optionally (b) target market country (default: `us`), (c) primary topical keyword (auto-inferred from `<title>` + `<h1>` if not supplied).
+- User provides: (a) a target URL, optionally (b) target market (per `CLAUDE.md` defaults — UK unless the user specifies otherwise), (c) primary topical keyword (auto-inferred from `<title>` + `<h1>` if not supplied).
 
 ## Process
 
@@ -21,13 +21,14 @@ Show what a single URL ranks for, what traffic it captures, where its weak and s
    - Firecrawl: optional with WebFetch fallback, ~1 Firecrawl credit if available. When available, step 6 recovers `og:*`, `twitter:*`, canonical, robots meta, JSON-LD types, and hreflang count from raw `<head>` — WebFetch returns markdown only and strips those fields. Without Firecrawl, the affected lines in `PAGE.md` emit `(skipped — Firecrawl not installed)`. Pass `--no-firecrawl` to treat Firecrawl as unavailable even when installed.
    - Google APIs: tier 1 (GSC available) unlocks step 4b (GSC URL performance + URL Inspection) after the page-authority step. See `skills/seo-google/references/cross-skill-integration.md` § "seo-page" for the full recipe.
 
-2. **URL-level overview** `dataforseo_labs_google_domain_rank_overview`
+2. **Domain overview** `dataforseo_labs_google_domain_rank_overview` (parent domain) — **run this once; steps 2 and 7 share the single result**
    - Pull keyword count, organic traffic estimate, paid keyword count, paid traffic estimate, top regions.
    - Note: traffic estimates are directional — they don't replace Google Search Console.
+   - Cache this payload in `evidence/01-url-overview.md`; step 7 reads it back rather than re-calling.
 
-3. **Ranking keywords** `dataforseo_labs_google_ranked_keywords` (use the `url` param for exact match)
-   - Pull every keyword the URL ranks for in the target country, with positions.
-   - Sort by traffic-weighted score: `volume × CTR-by-position` (use a standard CTR curve: 1=28%, 2=15%, 3=11%, 4=8%, 5=7%, 6=5%, 7=4%, 8=3%, 9=2%, 10=2%, 11+=1%).
+3. **Ranking keywords** `dataforseo_labs_google_ranked_keywords` (use the `url` param for exact match, `limit: 200`)
+   - Pull the keywords the URL ranks for in the target market, with positions.
+   - Sort by traffic-weighted score: `volume × CTR-by-position` using a rough CTR heuristic (directional only, not measured for this site): 1=28%, 2=15%, 3=11%, 4=8%, 5=7%, 6=5%, 7=4%, 8=3%, 9=2%, 10=2%, 11+=1%.
    - Take the top 3–5 as the URL's "primary keywords" for SERP work in step 5.
 
 4. **Page authority** `backlinks_summary` + `backlinks_timeseries_summary`
@@ -37,16 +38,17 @@ Show what a single URL ranks for, what traffic it captures, where its weak and s
 4b. **GSC URL performance + URL Inspection** *(only if google-api.json is present, tier ≥ 1)*
    - Replaces the directional traffic estimate from step 2 with first-party Google data for the exact URL.
    - Pull GSC search analytics for the URL (last 28 days, by query and page):
-     `python3 scripts/gsc_query.py --property "{config.default_property}" --url "{target_url}" --days 28 --json`
+     `python E:\DonnaProSEO\scripts\gsc_query.py --property "{config.default_property}" --url "{target_url}" --days 28 --json`
    - Pull URL Inspection (real indexation status, canonical Google sees, last crawl date):
-     `python3 scripts/gsc_inspect.py "{target_url}" --site-url "{config.default_property}" --json`
+     `python E:\DonnaProSEO\scripts\gsc_inspect.py "{target_url}" --site-url "{config.default_property}" --json`
    - If the URL's domain isn't a verified GSC property: surface "GSC: {target_domain} not verified — add it in Search Console" and continue with DataForSEO data only.
    - Surface in `PAGE.md` "## Snapshot": `GSC last 28d: {clicks}/{impressions}/{ctr}% CTR / pos {position}` and `Google sees: {INDEXED|EXCLUDED} · canonical {userCanonical} → {googleCanonical} · last crawled {date}`.
    - **Feed into the verdict heuristic:** `INDEXED` + impressions > 100 + position 4–10 → harden REFRESH (clear quick-win). `EXCLUDED` (any reason) → harden KILL or CONSOLIDATE. `userCanonical ≠ googleCanonical` → flag as critical issue regardless of verdict.
    - See `skills/seo-google/references/cross-skill-integration.md` § "seo-page" for the full recipe.
 
 5. **SERP context** `serp_organic_live_advanced`
-   - For each of the 3–5 primary keywords:
+   - Cap at **3 live SERP calls** (one per top-3 primary keyword) unless the user explicitly asks for more — each call is paid.
+   - For each keyword checked:
      - Top 10 organic results (URL, title, snippet).
      - SERP features present (PAA, image carousel, video, shopping, etc.).
      - AIO presence and citations — is this URL cited in the AIO? (AI overview items are returned in the same response.)
@@ -60,8 +62,8 @@ Show what a single URL ranks for, what traffic it captures, where its weak and s
    - **If Firecrawl unavailable:** the WebFetch portion still runs; populate Page basics' OG / Twitter / canonical / robots / JSON-LD / hreflang lines as `(skipped — Firecrawl not installed)`. Don't infer from markdown.
    - **Sense-check:** does the page actually talk about its top-ranking keyword in title and H1? If a page ranks for keywords it doesn't address textually, that's a strong consolidation signal.
 
-7. **Domain context** `dataforseo_labs_google_domain_rank_overview` (parent domain)
-   - Light-weight: parent DA, total keywords, total traffic. Used to contextualise the page's PA against its domain.
+7. **Domain context** — reuse the step 2 payload (no new call)
+   - From the step 2 `dataforseo_labs_google_domain_rank_overview` result already saved in `evidence/01-url-overview.md`, read parent DA, total keywords, total traffic. Used to contextualise the page's PA against its domain.
 
 8. **Cannibalization check** `dataforseo_labs_google_relevant_pages`
    - Pull the parent domain's pages ranked by organic traffic. Cap at the top 50 — that's where the cannibalization risk concentrates.
@@ -77,92 +79,20 @@ Show what a single URL ranks for, what traffic it captures, where its weak and s
 
 ## Output format
 
-Create a folder `seo-page-{target-slug}-{YYYYMMDD}/` with:
+Write to `output/seo-page-{target-slug}-{YYYYMMDD}/` (per `CLAUDE.md` output conventions). Structure:
 
-```
-seo-page-{target-slug}-{YYYYMMDD}/
-├── PAGE.md                       (synthesised verdict + plan — primary deliverable)
-├── keywords.csv                  (full keyword list with positions — load-bearing CSV the auditor walks through row-by-row)
-├── 04-serp-context.md            (top 10 + AIO for top 3–5 keywords — load-bearing reference for SERP-driven REFRESH discussions)
-└── evidence/
-    ├── 01-url-overview.md        (raw dataforseo_labs_google_domain_rank_overview)
-    ├── 02-keywords.md             (raw dataforseo_labs_google_ranked_keywords filtered)
-    ├── 03-authority.md            (backlinks_summary + backlinks_timeseries_summary)
-    ├── 05-page-snapshot.md        (HTML extracts)
-    └── 06-cannibalization.md      (peer pages on the same domain competing for the top-3 keywords)
-```
+- **`PAGE.md`** — primary deliverable: synthesised verdict + plan.
+- **`keywords.csv`** — full enriched ranking-keyword list (columns: `keyword,volume,kd,position,intent,traffic_estimate,url`); the auditable trail.
+- **`04-serp-context.md`** — per-keyword SERP top-10 + AIO for the primary keywords.
+- **`evidence/`** — raw per-call dumps (01 url/domain overview, 02 keywords, 03 authority, 05 page snapshot, 06 cannibalization).
 
-Top-level: `PAGE.md` + `keywords.csv` + `04-serp-context.md`. The other step files preserve raw API/HTML extracts in `evidence/` for reproducibility — auditors lean on the CSV and SERP context, not the per-call dumps.
+`PAGE.md` covers: Snapshot · Page basics · What this page wins · Almost-wins · What this page misses · Same-domain cannibalization · AI Search angle · Verdict (KEEP/REFRESH/CONSOLIDATE/KILL) with reasoning and — if REFRESH — top 3 changes.
 
-`PAGE.md` follows this shape:
-
-```markdown
-# Page Intelligence: {URL}
-
-> Snapshot dated {YYYY-MM-DD} · Country: {country} · Primary keyword: {keyword}
-
-## Snapshot
-- Ranking keywords: {n}
-- Estimated monthly organic traffic: {n}
-- Page authority: {PA} ({↑/↓ trajectory over 90 days})
-- Primary topic: {topic}
-- AIO citations: {n} of {checked} primary-keyword AIOs cite this URL
-- GSC last 28d: {clicks} clicks / {impressions} impressions / {ctr}% CTR / avg position {n}  *(or `not configured` / `property not verified`)*
-- Google sees: {INDEXED|EXCLUDED|...} · canonical {userCanonical} {→ googleCanonical if differ} · last crawled {YYYY-MM-DD}
-
-## Page basics
-- `<title>`: {value}
-- meta description: {value | absent}
-- `og:title`: {value | absent | skipped — Firecrawl required}
-- `og:description`: {value | absent | skipped}
-- `og:image`: {url | absent | skipped}
-- `twitter:card`: {summary | summary_large_image | absent | skipped}
-- `<link rel="canonical">`: {URL | self-referential | absent | skipped}
-- meta robots: {index,follow | noindex,nofollow | absent | skipped}
-- JSON-LD types detected: {Article, BreadcrumbList, Organization | none | skipped}
-- hreflang variants: {n | skipped}
-
-## What this page wins
-- {keyword} — position {n}, ~{volume} monthly searches, ~{traffic} monthly clicks.
-- ... (top 3–5)
-
-## Almost-wins (page-2 refresh opportunities)
-- {keyword} — position {n}, ~{volume} monthly searches. The top 3 SERP winners all do {pattern} that this page doesn't.
-- ... (top 3 examples)
-
-## What this page misses
-- {keyword} — competitors {comp1}, {comp2} rank in top 5; this page is absent.
-- ...
-
-## Same-domain cannibalization
-- {peer URL} — ranks position {n} for "{keyword}" (candidate ranks position {m}). Peer estimated traffic: {n}/mo.
-- ... (only list rows where a peer URL ranks ≤ 20 for one of the candidate's top-3 keywords; if none, write "No same-domain cannibalization detected on top-3 keywords.")
-
-## AI Search angle
-- {n} of {checked} AIO queries on the URL's keywords cite this page.
-- The AIOs that DON'T cite this page tend to cite {pattern} (e.g., comparison tables, step-by-step how-tos).
-- Recommended GEO move: {one specific change}.
-
-## Verdict: {KEEP | REFRESH | CONSOLIDATE | KILL}
-
-Reasoning: {1–2 sentences anchored in objective signals from above}.
-
-### If REFRESH — top 3 changes
-1. {Specific change}
-2. {Specific change}
-3. {Specific change}
-
-## Raw data
-- keywords.csv — full enriched ranking-keyword list
-- 04-serp-context.md — per-keyword SERP top-10 with AIO
-- evidence/05-page-snapshot.md — HTML extracts
-```
-
-`keywords.csv` columns: `keyword,volume,kd,position,intent,traffic_estimate,url`
+Load `templates/report.md` for the full folder layout and the exact `PAGE.md` shape when writing the deliverable.
 
 ## Tips
 
-- Respect DataForSEO API rate limit. The 3–5 SERP queries in step 5 should be paced sequentially.
+- Respect DataForSEO API rate limit. The (up to 3) SERP queries in step 5 should be paced sequentially.
 - Verdict heuristic:
   - **KEEP**: PA stable or up; traffic stable or up; top 3 keywords held in their positions; AIO citations present where AIO appears.
   - **REFRESH**: any of (PA dropped >5 in 90 days; traffic dropped >20%; a top-3 keyword fell to position 11+; AIO citations missing while competitors get cited). **Hardens** when GSC data (step 4b) shows `INDEXED` + impressions > 100 + average position 4–10 (clear quick-win territory).

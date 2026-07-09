@@ -1,6 +1,6 @@
 # Content Audit: {URL or title}
 
-> Audited {YYYY-MM-DD} · Target keyword: "{keyword}" · Country: {country}
+> Audited {YYYY-MM-DD} · Target keyword: "{keyword}" · Market: {location_name}/{language_code}
 
 ## Verdict: {PUBLISH | PUBLISH WITH FIXES | NO PUBLISH}
 
@@ -40,6 +40,10 @@
   - {gap 1}
   - {gap 2}
   - {gap 3}
+
+## Snapshot (measured)
+
+- GA4 organic last 28d: {sessions} sessions / {users} users / avg engagement {n}s  *(or `not in top-100` / `not configured (Tier 2 required)`)*
 
 ## Top 5 fixes (impact-ranked)
 

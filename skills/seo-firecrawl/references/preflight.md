@@ -1,73 +1,66 @@
 # Shared preflight contract for analysis skills
 
-> Shared preflight contract for analysis skills. v2.7.1+. Mirror this pattern; don't reimplement.
-
-Every analysis skill in this catalogue runs the same 3-stage preflight at the start of its Process section. This file is the single source of truth — skills should reference it from their step 1 (or Prerequisites) rather than inlining the full prose.
-
-The pattern was duplicated 6+ times across SKILL.md files until v2.7.0; centralised in v2.7.1 so a doc fix lands in one place.
+Every analysis skill runs the same 3-stage preflight at the start of its Process section. This file is the single source of truth — skills reference it from step 1 (or Prerequisites) instead of inlining the prose. Project-wide defaults (markets, cost discipline, output conventions) live in `CLAUDE.md` and always apply.
 
 ## The 3-stage preflight
 
-### Stage A — SE Ranking credit balance (`DATA_getCreditBalance`)
+### Stage A — DataForSEO budget guard
 
-Call `DATA_getCreditBalance` before running anything that costs SE Ranking credits. Surface the result and the per-skill estimate to the user before continuing, in this canonical shape:
+DataForSEO has no MCP credit-balance tool, so the guard is an estimate-and-confirm gate, not a balance check:
+
+1. Estimate the number of paid DataForSEO calls the run will make (each skill states its typical range in its own step 1).
+2. If the estimate exceeds ~10 calls — or the user asked for a multi-market breakdown, which multiplies cost per market — surface it and confirm before running:
 
 ```
-Remaining: {n} credits. Estimated cost: ~{n} credits. Continue? (y/N)
+Estimated DataForSEO calls: ~{n} ({scope description}). Continue? (y/N)
 ```
 
-The estimate is skill-specific — each skill cites its own figure in its step 1 reference (see "How to reference this from a skill" below).
+3. On confirmation, apply the cost rules from `CLAUDE.md § DataForSEO cost discipline`: always set `limit` + server-side `filters`, prefer intersection/bulk endpoints over per-domain fan-out, never repeat a call for data already saved in `evidence/`.
 
-If the remaining balance is below the estimate, surface the shortfall and stop — don't run a partial pass.
+All DataForSEO APIs (including Backlinks and LLM Mentions) are pay-as-you-go with no monthly minimum as of 2026-07-01.
 
-### Stage B — Firecrawl availability (`mcp__firecrawl-mcp__firecrawl_scrape`)
+### Stage B — Firecrawl availability
 
-Check whether `mcp__firecrawl-mcp__firecrawl_scrape` is connected. The branch is the same in every skill that uses Firecrawl:
+Check whether a Firecrawl scrape capability is available (MCP tool `mcp__firecrawl-mcp__firecrawl_scrape`, or the `firecrawl:firecrawl-scrape` skill/CLI — accept any of them, do not hard-require one tool id).
 
-- **If available → enriched path.** Run the Firecrawl-using steps as documented in the skill. Surface the projected Firecrawl cost (typically 1 credit per URL scraped, varies by mode — see `seo-firecrawl/SKILL.md` § "Cost estimation").
-- **If unavailable → degraded path.** The skill still runs on WebFetch + SE Ranking data. The Firecrawl-only deliverable lines emit `(skipped — Firecrawl not installed)` notes; skill-specific caveats (lower-confidence schema detection, missing canonical/robots/og:* recovery, etc.) are documented in the skill's own step descriptions.
-- **`--no-firecrawl` flag.** User may pass `--no-firecrawl` to force the degraded path even when Firecrawl is available — useful for credit conservation.
+- **If available → enriched path.** Run the Firecrawl steps as documented in the skill; surface projected Firecrawl cost (typically 1 credit per URL, varies by mode — see `seo-firecrawl/SKILL.md` § Cost estimation).
+- **If unavailable → degraded path.** The skill still runs on WebFetch + DataForSEO data. Firecrawl-only deliverable lines emit `(skipped — Firecrawl not available)`; skill-specific caveats live in each skill's own steps.
+- **`--no-firecrawl` flag** forces the degraded path even when Firecrawl is available (credit conservation).
+- Plain-text or tiny files (llms.txt, robots.txt, sitemaps) may always be fetched with WebFetch — don't spend Firecrawl credits on them.
 
-When unavailable, also surface the install hint: `bash extensions/firecrawl/install.sh` (free tier 500 credits/month — see `seo-firecrawl/SKILL.md`).
+When unavailable, surface the install hint: `bash extensions/firecrawl/install.sh`.
 
-### Stage C — Google APIs (`python3 scripts/google_auth.py --check --json`)
+### Stage C — Google APIs
 
-Run `python3 scripts/google_auth.py --check --json` and parse the result.
+Run `python E:\DonnaProSEO\scripts\google_auth.py --check --json` (Windows host: `python`, absolute path) and parse the result.
 
-- **If `tier >= 0`** (any creds present): the skill branches into the per-tier enrichment recipes documented in `skills/seo-google/references/cross-skill-integration.md`. Each enrichment-aware skill has its own section there listing which tier unlocks which step.
-- **If `tier == -1`** or the file is missing: the skill proceeds without Google enrichment and notes `Google enrichment: not configured (run `bash extensions/google/install.sh`)` in the deliverable.
+- **If `tier >= 0`**: branch into the per-tier enrichment recipes in `skills/seo-google/references/cross-skill-integration.md`.
+- **If `tier == -1`** or the script/config is missing: proceed without Google enrichment and note `Google enrichment: not configured` in the deliverable. (On this machine Google APIs are not configured — expect this path; see CLAUDE.md.)
 
-This stage **defers entirely** to `skills/seo-google/references/cross-skill-integration.md` for per-tier branches, failure handling, and the per-skill enrichment recipes — don't duplicate that contract here.
+Stage C defers entirely to `cross-skill-integration.md` for per-tier branches and failure handling — don't duplicate that contract here.
 
 ## Failure-mode table
 
-Mirror the cross-skill-integration table for the Google stage; the Firecrawl + credit-balance rows are this skill's own additions.
-
 | Failure | Detection | Skill response |
 |---|---|---|
-| Credit balance call fails | `DATA_getCreditBalance` returns error or non-200 | Note "SE Ranking credit balance unavailable — proceeding without preflight cost estimate; surface actual cost in deliverable" and continue. **Never** fail the run on this — credit data is a courtesy, not a gate. |
-| Credit balance below estimate | `remaining < estimated_cost` | Surface the shortfall; ask the user whether to proceed with a reduced scope (e.g. lower URL cap, lite mode) or top up credits before re-running. |
-| Firecrawl MCP not installed | `mcp__firecrawl-mcp__firecrawl_scrape` not in available tools | Note "Firecrawl not installed — degraded path active; install via `bash extensions/firecrawl/install.sh`" and run the WebFetch-only path. |
-| Firecrawl rate-limit hit | Firecrawl response 429 | Note "Firecrawl rate-limit reached — falling back to WebFetch for remaining URLs" and continue degraded for the rest of the run. Do not retry in a tight loop. |
-| Firecrawl Cloudflare/anti-bot block | Firecrawl response 403 / "blocked by WAF" | Note the affected URL and the block reason in the deliverable, then continue. Defeating WAFs is out of scope. |
-| Google config file missing | `google_auth.py --check` exits non-zero | Note "Google field data: not configured" and skip enrichment. |
-| Google API key invalid | Script returns `{"error": "API_KEY_INVALID"}` | Note "Google API key rejected — re-check `~/.config/seo-skills/google-api.json`" and skip. |
-| GSC property not verified | `gsc_query.py` returns `{"error": "PROPERTY_NOT_VERIFIED"}` | Note "GSC property `{x}` not verified for this account" and skip GSC enrichment only. |
-| GA4 property not configured | `ga4_property_id` empty in config | Note "GA4: property ID not configured (Tier 2 setup required)" and skip GA4 only. |
-| Insufficient CrUX data | `pagespeed_check.py --crux-only` returns `{"crux": null}` | Note "CrUX: insufficient field data for `{url}` (low traffic)" and skip CrUX only. |
-| Google API rate-limit hit | Script returns HTTP 429 | Note "Google API rate-limit reached — try again in 1h" and skip the affected enrichment. |
+| DataForSEO call fails / empty result | Error status or zero rows | Note it in the deliverable, mark the affected section "insufficient data", and continue. Do not retry with query variations; do not fabricate values. Failed DataForSEO requests don't consume credits. |
+| DataForSEO rate limit | HTTP 429 | Pace sequentially (10 req/s cap); back off once, then continue. |
+| Firecrawl not available | No scrape tool/skill in session | Note "Firecrawl not available — degraded path active" and run the WebFetch-only path. |
+| Firecrawl rate limit | 429 | Fall back to WebFetch for remaining URLs; no tight-loop retries. |
+| Firecrawl WAF/anti-bot block | 403 / blocked | Note the URL and reason, continue. Defeating WAFs is out of scope. |
+| Google config missing | `google_auth.py --check` non-zero | Note "Google field data: not configured" and skip enrichment. |
+| GSC property not verified | `{"error": "PROPERTY_NOT_VERIFIED"}` | Skip GSC enrichment only, note it. |
+| Insufficient CrUX data | `{"crux": null}` | Note "CrUX: insufficient field data" and skip CrUX only. |
 
-A skill **never** fails the run because preflight enrichment failed. Enrichment is optional uplift; the SE Ranking-based deliverable always ships.
+A skill **never** fails the run because preflight or enrichment failed. Enrichment is optional uplift; the DataForSEO-based deliverable always ships.
 
 ## How to reference this from a skill
 
-In the skill's Prerequisites or Process step 1, replace the verbose 3-block preflight prose with this canonical reference:
+In the skill's Prerequisites or Process step 1, replace verbose preflight prose with:
 
 ```
-1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (credit balance, Firecrawl availability, Google APIs). Skill-specific notes:
-   - Estimated SE Ranking cost for this skill: ~{N} credits ({describe scope}).
-   - Firecrawl: {required | optional with WebFetch fallback | not used}, ~{N} credits if available.
-   - Google APIs: {tier required for which enrichment step, or "not used"}.
+1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` (budget guard, Firecrawl availability, Google APIs) and `CLAUDE.md` (market defaults, cost discipline). Skill-specific notes:
+   - Typical DataForSEO calls for this skill: ~{N} ({scope}).
+   - Firecrawl: {required | optional with WebFetch fallback | not used}.
+   - Google APIs: {tier/step, or "not used"}.
 ```
-
-Skill-specific notes preserve the bits that vary per skill (cost figures, Firecrawl scope, Google API tier) — the verbose preflight prose is centralised here.

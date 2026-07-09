@@ -15,19 +15,15 @@ Diagnose why a "well-optimized" page doesn't rank. Reads the actual SERP for the
 
 - DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available.
-- User provides: (a) target page URL, (b) target keyword the page is meant to rank for, optionally (c) target country (default `us`).
+- User provides: (a) target page URL, (b) target keyword the page is meant to rank for. Market: per `CLAUDE.md` defaults (UK unless the user specifies another market).
 
 ## Process
 
 1. **Validate inputs.** Both URL and keyword are required. If keyword missing, ask the user — don't infer.
 
-2. **Pull the SERP** `serp_organic_live_advanced`
-   - Top 10 organic results with URL, title, snippet.
-   - SERP features: AI Overview presence, People Also Ask, image carousel, video carousel, shopping pack, Twitter pack, Featured Snippet, etc.
-   - **Mode selection (cost driver — read this).** SERP feature data (AIO/PAA/carousels) is available when running `serp_organic_live_advanced` — this is the standard DataForSEO SERP call and returns full SERP feature context including AI Overview snippets, PAA blocks, carousels, and shopping packs in the `items` array.
-     - **Default — `mode=full`:** runs `serp_organic_live_advanced` with all result types. Returns features + organic. Use when persona scoring needs PAA / AIO / pack signals (most cases).
-     - **`mode=lite`:** request only organic items, no extra parsing of feature items. Use when (a) the user is screening many keywords and SERP features aren't load-bearing, (b) costs are constrained, (c) the user explicitly asks for a cheap pass. The persona scoring still runs but the SERP-features row in `SXO-REPORT.md` will read `(skipped — lite mode)` and the dominant-pattern detection will rely on URL/title heuristics alone.
-     - Surface the chosen mode up front. If the user didn't specify and the keyword looks ad-heavy or commercial-high-volume, recommend `mode=lite` first and re-run with `mode=full` only if dominant-pattern confidence is low.
+2. **Pull the SERP** — one `serp_organic_live_advanced` call
+   - This single call returns the top organic results (URL, title, snippet) **and** all SERP features — AI Overview, People Also Ask, image/video carousels, shopping pack, Twitter pack, Featured Snippet — in the `items` array. Parse `items` by `type` to extract features. Never re-call for feature data you already received.
+   - **Insufficient-SERP guard:** if fewer than 5 organic results come back, flag `insufficient SERP data` in `SXO-REPORT.md` and do NOT compute a dominant pattern (too few results to classify reliably). Report the organic count and stop the pattern analysis; persona scoring of the user's page may still run as a caveated partial.
 
 3. **Extract AIO context from SERP results**
    - Check `serp_organic_live_advanced` result items for `type: "ai_overview"` entries.
@@ -65,10 +61,10 @@ Diagnose why a "well-optimized" page doesn't rank. Reads the actual SERP for the
 
 ## Output format
 
-Create a folder `seo-sxo-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-sxo-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-sxo-{target-slug}-{YYYYMMDD}/
+output/seo-sxo-{target-slug}-{YYYYMMDD}/
 ├── 01-serp-snapshot.md            (top 10 + features + AIO)
 ├── 02-page-type-classification.md (each top-10 result classified)
 ├── 03-user-page-fingerprint.md    (the candidate page's structure)
@@ -78,67 +74,11 @@ seo-sxo-{target-slug}-{YYYYMMDD}/
 └── SXO-REPORT.md                  (executive summary deliverable)
 ```
 
-`SXO-REPORT.md` shape:
-
-```markdown
-# SXO Report: {URL} for keyword "{keyword}"
-
-> Snapshot dated {YYYY-MM-DD} · Country: {country}
-
-## SERP profile
-- Top 10 page types: {comparison: 4, listicle: 3, editorial: 2, video: 1}
-- Dominant pattern: **{pattern}** ({n} of 10)
-- SERP features: AIO ✓ ({n} citations), PAA ✓ ({n} questions), Image carousel ✗, Video carousel ✗, Shopping pack ✗
-- Intent: {informational | commercial-investigation | transactional | navigational}
-
-## Your page
-- Page type: **{detected type}**
-- Page-type match with dominant: **{✓ match | ✗ MISMATCH — see Verdict}**
-- Word count: {n}
-- Primary content structure: {prose | numbered-list | table | step-blocks | Q&A | mixed}
-
-## SXO score: **{score}/100**
-
-| Persona | Weight | Score | Notes |
-|---|---|---|---|
-| Skimmer | {%} | {n}/10 | {1-line note} |
-| Researcher | {%} | {n}/10 | {1-line note} |
-| Buyer | {%} | {n}/10 | {1-line note} |
-| Validator | {%} | {n}/10 | {1-line note} |
-
-## Verdict
-
-{One paragraph. If page type matches: "Your page is the right type for this SERP. The score gap is {X} points — see persona-specific gaps below." If MISMATCH: "Your page is a {your type} but the SERP rewards {dominant type}. No amount of on-page optimization will close the gap; ship a {dominant type} page instead. Wireframe below."}
-
-## If MISMATCH — wireframe for the winning page type
-
-\`\`\`
-{Page title pattern — e.g., "{Brand A} vs {Brand B}: 2026 Comparison"}
-
-[Hero / TL;DR — first 200 words answer the comparative question]
-[Comparison table — must be visually dominant]
-[Section per dimension — each with H2 named after the dimension]
-[Verdict / recommendation — explicit, justified]
-[FAQ — top 3–5 PAA questions]
-[Schema — Product (×2) + BreadcrumbList + FAQPage]
-\`\`\`
-
-## If MATCH — top 3 changes by persona
-
-1. {Skimmer}: {specific change}
-2. {Researcher}: {specific change}
-3. {Buyer or Validator}: {specific change}
-
-## Raw data
-- 02-page-type-classification.md — every top-10 result, classified
-- 03-user-page-fingerprint.md — your page's signals
-- 04-persona-scores.md — full persona-by-persona breakdown
-```
+`SXO-REPORT.md` structure: SERP profile (page-type counts, dominant pattern, features, intent) → Your page (detected type, match/mismatch, structure) → SXO score /100 with the 4-persona table → Verdict paragraph → MISMATCH wireframe *or* MATCH top-3 persona changes → Raw data pointers. Load `templates/report.md` for the full mock (including the wireframe block) when writing the deliverable.
 
 ## Tips
 
-- Respect DataForSEO API rate limits. The SERP call in step 2 is the primary API call; WebFetch calls in step 4 dominate latency.
-- **`serp_organic_live_advanced` is the only call needed for SERP data** — it returns organic results plus all SERP feature items (AIO, PAA, carousels, shopping pack) in a single response. Parse `items` for `type` to extract features.
+- Respect DataForSEO API rate limits (10 req/s). The single SERP call in step 2 is the primary API call; WebFetch calls in step 4 dominate latency.
 - Page-type classification is a heuristic — `references/page-type-patterns.md` documents the signals so users can override. If the heuristic gets a result wrong, edit that file with the correction.
 - The 4 personas are opinionated. They come from the framework's original source — don't invent more without good reason.
 - The SXO score is directional. An 85/100 doesn't guarantee ranking; a 35/100 strongly suggests the page won't break through. Treat as a diagnostic, not a forecast.

@@ -11,60 +11,53 @@ Map a domain's paid-search footprint and the competitive landscape around its ta
 ## Prerequisites
 
 - DataForSEO MCP server connected.
-- User provides: (a) a target domain OR a target keyword (skill detects which), (b) target country (default `us`).
+- User provides: (a) a target domain OR a target keyword (skill detects which), (b) market — per CLAUDE.md defaults (UK unless the user specifies).
 
 ## Process
 
-1. **Validate input & preflight**
-   - Determine: domain mode (analyse a brand's paid footprint) or keyword mode (analyse the bidding landscape for one keyword).
+1. **Validate input & preflight.** Determine domain mode (analyse a brand's paid footprint) or keyword mode (analyse the bidding landscape for one keyword). Then run the shared preflight — see `skills/seo-firecrawl/references/preflight.md` (budget guard, Google APIs) and `CLAUDE.md` (market defaults, cost discipline). Skill-specific notes:
+   - Typical DataForSEO calls: domain mode ~5–7 (Labs paid pulls + up to 5 SERP calls); keyword mode ~3. Firecrawl: not used. Google APIs: not used.
 
 2. **Domain mode** `dataforseo_labs_google_ranked_keywords` (with paid traffic filter)
-   - Pull paid keywords the target domain bids on.
-   - For each: keyword, search volume, CPC, position, ad copy (title + description), URL.
+   - Pull paid keywords the target domain bids on: keyword, search volume, CPC, paid position, landing URL. Set `limit` + server-side filters per CLAUDE.md.
+   - **Labs does NOT return ad copy.** `ranked_keywords` is aggregated metric data, not live ad creative — there is no headline/description in the response. Ad copy comes only from the live SERP (step 4); layer it onto the top keywords from there.
    - Sort by traffic-weighted score (`volume × CTR-by-paid-position × bid-share`).
 
-3. **Keyword mode** `serp_organic_live_advanced` (paid results in response)
-   - Pull all domains bidding on the target keyword.
-   - For each: domain, ad position, ad copy, URL.
-   - Surface the top 10 advertisers + their copy patterns.
-
-4. **Intent enrichment** `dataforseo_labs_google_related_keywords`
+3. **Intent enrichment** `dataforseo_labs_google_related_keywords`
    - For the keyword(s) in scope, pull related questions.
    - Identifies question-phrased intent variants worth bidding on (often cheaper, higher conversion).
 
-5. **SERP ad/shopping presence** `serp_organic_live_advanced`
-   - For top 5 keywords (domain mode) or the target keyword (keyword mode):
-     - Use SERP-feature filters to detect ad-pack composition: `tads` (top ads above organic), `bads` (bottom ads below organic), `sads` (shopping ads / Google Shopping pack), `mads` (mobile/map-pack ads).
-     - Top SERP ad slots (positions 1-4 above organic, 1-3 below).
-     - Shopping pack presence (carousel of product cards).
-     - Image pack, local pack — these displace ad inventory.
-   - Capture which advertisers occupy those slots.
+4. **Live SERP pull** `serp_organic_live_advanced` — one call per keyword, serving BOTH advertiser/ad-copy extraction AND paid-feature analysis
+   - Run on the target keyword (keyword mode) or the top 5 keywords (domain mode). **One call per keyword returns everything** — do not call the SERP twice for the same keyword. From each response extract:
+     - **Advertisers + ad copy:** every domain bidding, its ad position, and its ad headline + description + URL (this is the only source of live ad creative — see step 2). Surface the top ~10 advertisers.
+     - **Ad-pack composition** from the same payload: `tads` (top ads above organic), `bads` (bottom ads below organic), `sads` (shopping ads / Google Shopping pack), `mads` (map-pack ads); plus image pack / local pack, which displace ad inventory.
+   - **Zero-ads handling.** Many B2B / informational keywords have no ads at all. If a keyword's SERP returns no `tads`/`bads`/`sads`, record it as **"no paid presence"** and move on — do NOT retry, vary the query, or treat empty as an error. A clean "no advertisers bid on this" is a valid, useful finding.
 
-6. **Ad copy pattern analysis**
+5. **Ad copy pattern analysis** (from step 4 data)
    - Cluster ad headlines + descriptions by recurring patterns.
    - Identify: USP language used by leaders, pricing/discount mentions, audience segmentation, CTA verbs.
    - Highlight outliers (advertisers doing something different).
 
-7. **Paid-keyword gap (domain mode)** `dataforseo_labs_google_ranked_keywords` with paid traffic filter
+6. **Paid-keyword gap (domain mode)** `dataforseo_labs_google_ranked_keywords` with paid traffic filter
    - Pull the user's domain's paid keywords.
    - For each top competitor (from step 2 or `dataforseo_labs_google_competitors_domain`): pull their paid keywords.
    - Diff: paid keywords competitors bid on that the user's domain doesn't.
-   - This becomes the highest-leverage portion of the bid-keyword shortlist (step 8).
+   - This becomes the highest-leverage portion of the bid-keyword shortlist (step 7).
    - Skip in keyword mode (no domain to gap against).
 
-8. **Recommended bid-keyword shortlist**
-   - For domain mode: paid-keyword gap from step 7 + adjacent question-intent variants.
+7. **Recommended bid-keyword shortlist**
+   - For domain mode: paid-keyword gap from step 6 + adjacent question-intent variants.
    - For keyword mode: question-intent and long-tail variants that are likely cheaper than the head term.
    - Each row: keyword, est. CPC, est. volume, who else bids, why-recommended.
 
-9. **Synthesise** `ADS.md`
+8. **Synthesise** `ADS.md`
 
 ## Output format
 
-Create a folder `seo-ads-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-ads-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-ads-{target-slug}-{YYYYMMDD}/
+output/seo-ads-{target-slug}-{YYYYMMDD}/
 ├── ADS.md                              (synthesised brief — primary deliverable; inlines paid footprint, bidding landscape, SERP ad/shopping pack, ad copy patterns, paid keyword gap)
 ├── recommended-keywords.csv            (bid-keyword shortlist — load-bearing CSV the PPC team pastes into bid tooling)
 └── evidence/
@@ -78,73 +71,16 @@ seo-ads-{target-slug}-{YYYYMMDD}/
 
 Step files 01, 02, 04, 05, 06 are inlined as sections in `ADS.md`; the copies in `evidence/` preserve the raw step outputs for reproducibility.
 
-`ADS.md` follows this shape:
-
-```markdown
-# Paid-Search Intelligence: {target}
-
-> Snapshot dated {YYYY-MM-DD} · Country: {country} · Mode: {domain | keyword}
-
-## Footprint summary
-- Paid keywords: {n}
-- Estimated paid traffic: {n}/mo
-- Average CPC: ${n}
-- SERP slots covered: {n} of top-4 above organic across {n} target keywords
-
-## Top 10 paid keywords (domain mode)
-
-| Keyword | Volume | CPC | Position | Ad copy excerpt |
-|---|---|---|---|---|
-| {kw} | {n} | ${n} | {pos} | "{headline} — {snippet}" |
-| ...
-
-## Bidding landscape (keyword mode — for "{keyword}")
-
-| Advertiser | Position | Ad copy excerpt | URL |
-|---|---|---|---|
-| {domain} | {pos} | "{headline} — {snippet}" | {url} |
-| ...
-
-## Ad copy patterns (top patterns observed)
-
-1. **Pricing-led:** "{N}% off — start at ${X}/mo" — used by {n} advertisers.
-2. **Outcome-led:** "Get {specific outcome} in {time}" — used by {n}.
-3. **Trust-led:** "Trusted by {n} {audience}" — used by {n}.
-4. ...
-
-## SERP feature inventory
-
-| Keyword | Top ads | Shopping pack | PAA | Image pack |
-|---|---|---|---|---|
-| {kw} | {advertiser list} | {✓/✗} | {✓/✗} | {✓/✗} |
-| ...
-
-## Recommended bid-keyword shortlist
-
-See `recommended-keywords.csv`. Top 10:
-
-| Keyword | Volume | Est. CPC | Why |
-|---|---|---|---|
-| {kw} | {n} | ${n} | Question-intent variant; competitor X bids on head term but not this. |
-| ...
-
-## Constraints / caveats
-- CPC and volume estimates are directional. Actual costs depend on Quality Score, time of day, audience, etc.
-- {Note any ad-copy that's clearly seasonal / promotional and may not represent steady-state.}
-
-## Recommended next step
-Cross-reference these paid keywords with `seo-keyword-cluster` output to find under-served paid clusters. For organic content opportunities corresponding to these paid keywords, run `seo-keyword-niche`.
-```
+`ADS.md` opens with a header (target · snapshot date · market · mode), a footprint summary, a top-10 paid-keyword table (domain mode) or bidding-landscape table (keyword mode) with ad-copy excerpts, ad-copy patterns, a SERP-feature inventory (marking "no paid presence" keywords), the recommended bid-keyword shortlist, and constraints/caveats. Full skeleton: `templates/report.md`.
 
 `recommended-keywords.csv` columns: `keyword,volume,cpc_estimate,position_target,intent,competitor_count,why_recommended`
 
 ## Tips
 
-- Respect rate limit. Domain mode: ~3–5 DataForSEO API calls. Keyword mode: ~3 calls. Plus a few SERP queries.
+- Respect the 10 req/s rate limit. Domain mode: ~5–7 DataForSEO calls (Labs paid pulls + up to 5 SERP calls). Keyword mode: ~3. One SERP call per keyword serves both advertiser extraction and ad-pack analysis — never re-query the same keyword's SERP.
 - **CPC estimates lag.** DataForSEO's CPC data is not real-time auction data; treat as ±30% directional.
 - Ad copy often reveals competitor positioning before product launches do — periodic review (quarterly) catches strategic shifts.
 - Question-intent variants often have lower CPC and higher conversion than head terms. The shortlist in step 8 prioritises these.
 - Pair with `seo-keyword-niche` for organic content opportunities derived from paid keyword research.
 - Pair with `seo-competitor-pages` if the bidding landscape reveals "X vs Y" / "alternatives" intent — those keywords convert best as comparison pages, not paid ads.
-- **Ads data via shared DataForSEO tools** — beyond the dedicated paid-filter calls on `dataforseo_labs_google_ranked_keywords` / `serp_organic_live_advanced`, the `dataforseo_labs_google_domain_intersection`, `dataforseo_labs_google_competitors_domain`, `dataforseo_labs_google_relevant_pages`, and similar tools can surface the paid view of the same data structures. Combine with the `tads/bads/sads/mads` SERP-feature filters and the CPC filter on SERP queries to map paid landscape comprehensively.
 - Don't recommend paid keywords without context. The shortlist is a starting point for the PPC team, not an autopilot.

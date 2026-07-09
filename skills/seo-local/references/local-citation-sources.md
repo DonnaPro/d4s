@@ -11,9 +11,23 @@ The list is curated to directories that meaningfully drive local-pack visibility
 | Google Business Profile | `site:google.com/maps "{business name}"` | The primary local-pack signal; verifies legitimacy. |
 | Yelp | `site:yelp.com "{business name}"` | High Domain Authority; ChatGPT sources from it. |
 | Facebook | `site:facebook.com "{business name}"` | Brand presence + reviews; Apple Maps may pull from FB. |
-| BBB | `site:bbb.org "{business name}"` | Google uses BBB for verification signals; consumer-trust marker. |
-| Apple Business Connect | `site:maps.apple.com "{business name}"` | Apple Maps data; usage doubled to 27% of consumers (BrightLocal 2026). |
+| BBB | `site:bbb.org "{business name}"` | Google uses BBB for verification signals; consumer-trust marker. **North-America-only** — skip for UK/EU targets (BBB has no meaningful UK presence). |
+| Apple Business Connect | `site:maps.apple.com "{business name}"` | Apple Maps data; usage doubled to 27% of consumers (BrightLocal, as of 2026 — re-verify). |
 | Bing Places | `site:bing.com/maps "{business name}"` | Powers ChatGPT, Copilot, Alexa local recommendations. |
+
+## Tier 1 UK (use these in place of BBB / US-centric aggregators for United Kingdom targets)
+
+DonnaPro's primary market is the UK (see `CLAUDE.md`). For UK businesses, sample these alongside Google / Yelp / Facebook / Apple / Bing:
+
+| Directory | site: pattern | Why it matters |
+|---|---|---|
+| Yell | `site:yell.com "{business name}"` | The dominant UK business directory (formerly Yellow Pages UK); high local-pack citation weight. |
+| Thomson Local | `site:thomsonlocal.com "{business name}"` | Long-running UK local directory; NAP aggregation. |
+| 192.com | `site:192.com "{business name}"` | UK people/business search; NAP verification signal. |
+| Scoot | `site:scoot.co.uk "{business name}"` | UK directory network; feeds several partner sites. |
+| FreeIndex | `site:freeindex.co.uk "{business name}"` | UK free business directory with reviews. |
+| Trustpilot | `site:trustpilot.com "{business name}"` | Reviews platform with strong UK consumer trust; sample where the business collects reviews there. |
+| Checkatrade | `site:checkatrade.com "{business name}"` | UK home-services trust directory — include for Home Services vertical. |
 
 ## Vertical-specific (pick the top 2 for the detected vertical)
 

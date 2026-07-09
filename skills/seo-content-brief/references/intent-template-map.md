@@ -2,7 +2,7 @@
 
 > Adapted from `AgriciDaniel/claude-seo`'s `seo-cluster/references/hub-spoke-architecture.md` (MIT).
 
-Use this map at brief time to classify the article being briefed against one of 8 canonical templates. Selection is driven by the SERP top-10 (page-type majority) and the keyword's intent classification from `DATA_getRelatedKeywords` / `DATA_getKeywordQuestions`. Cross-reference word-count floors against the page-type rubric the auditor uses in `skills/seo-content-audit/` — the brief's "Word count target" must clear the floor for the chosen template.
+Use this map at brief time to classify the article being briefed against one of 8 canonical templates. Selection is driven by the SERP top-10 (page-type majority) and the keyword's intent classification from `dataforseo_labs_search_intent`, with `dataforseo_labs_google_related_keywords` and `dataforseo_labs_google_keyword_suggestions` (question-word filters for PAA-style queries) for supporting signal. Cross-reference word-count floors against the page-type rubric the auditor uses in `skills/seo-content-audit/` — the brief's "Word count target" must clear the floor for the chosen template.
 
 ## How to use
 

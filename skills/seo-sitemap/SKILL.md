@@ -1,12 +1,12 @@
 ---
 name: seo-sitemap
-description: Pull a domain's XML sitemap (and sitemap-of-sitemaps), then compare against Firecrawl-discovered URLs and Google-indexed pages via DataForSEO. Surfaces (a) sitemap entries not reachable via crawl (orphans from the sitemap), (b) discovered/indexed pages missing from the sitemap (probably an oversight), (c) sitemap entries that are now 404, (d) lastmod inconsistencies. Use when the user asks for "sitemap analysis", "check my sitemap", "sitemap vs crawl", "missing pages", "orphan pages", or "sitemap health".
+description: Pull a domain's XML sitemap (and sitemap-of-sitemaps), then compare against Firecrawl-discovered URLs and pages with ranking visibility via DataForSEO. Surfaces (a) sitemap entries not reachable via crawl (orphans from the sitemap), (b) discovered / ranking-visible pages missing from the sitemap (probably an oversight), (c) sitemap entries that are now 404, (d) lastmod inconsistencies. Use when the user asks for "sitemap analysis", "check my sitemap", "sitemap vs crawl", "missing pages", "orphan pages", or "sitemap health".
 ---
 > Example output: [examples/seo-sitemap-notion-so-20260514/SITEMAP.md](../../examples/seo-sitemap-notion-so-20260514/SITEMAP.md)
 
 # Sitemap Analysis
 
-Compare a domain's XML sitemap against Firecrawl-discovered URLs and Google-indexed pages (via DataForSEO). Surface what the sitemap claims vs what crawlers and search engines actually found, in both directions.
+Compare a domain's XML sitemap against Firecrawl-discovered URLs and pages with ranking visibility (via DataForSEO). Surface what the sitemap claims vs what crawlers and DataForSEO's ranking database actually found, in both directions. Note the DataForSEO source is a subset of Google's index (pages that rank for at least one tracked keyword), not the full index.
 
 ## Prerequisites
 
@@ -21,21 +21,21 @@ Compare a domain's XML sitemap against Firecrawl-discovered URLs and Google-inde
    - Normalise the domain (strip protocol, trailing slash, `www` variant).
    - **Firecrawl availability check.** Check if `mcp__firecrawl-mcp__firecrawl_map` is available. Note for the user whether Mode-2 will run.
 
-2. **Build URL lists** via `WebFetch` (sitemap) + `mcp__firecrawl-mcp__firecrawl_map` (optional Mode-2) + `dataforseo_labs_google_relevant_pages` (indexed pages)
+2. **Build URL lists** via `WebFetch` (sitemap) + `mcp__firecrawl-mcp__firecrawl_map` (optional Mode-2) + `dataforseo_labs_google_relevant_pages` (pages with ranking visibility)
    - **Mode-1 (default).** Try `https://{domain}/sitemap.xml`. If 404, fetch `/robots.txt` and look for `Sitemap:` directives. For sitemap-of-sitemaps, recursively fetch each child sitemap. Build the canonical URL list from the sitemap XML.
    - **Mode-2 trigger.** Switch on Mode-2 when (a) no sitemap is reachable, (b) the sitemap returns fewer than 10 URLs, or (c) the user explicitly requests `--discover`. Always surface the trigger to the user before running Mode-2.
    - **Mode-2 execution** (requires Firecrawl): call `firecrawl_map(url=domain, limit=500)`. The response is the URL list Firecrawl could discover from the homepage and internal linking. Use this list as the "crawl-discovered" URL set in step 5.
    - **If Mode-2 is needed but Firecrawl is unavailable:** continue with whatever sitemap data Mode-1 returned (possibly empty). Surface clearly in `SITEMAP.md`: `Mode-2 (Firecrawl URL discovery) needed but Firecrawl not installed — crawl-vs-sitemap diffs run on partial data only.`
 
-3. **Pull Google-indexed pages** `dataforseo_labs_google_relevant_pages`
-   - Call with `target={domain}`. Returns URLs Google has indexed for the domain — the search-engine view of the site. This replaces the "domain pages" source from a project-based audit.
+3. **Pull pages with ranking visibility** `dataforseo_labs_google_relevant_pages`
+   - Call with `target={domain}` (set `limit` + filters per CLAUDE.md). Returns the domain's pages that currently rank for at least one keyword **in DataForSEO's database** — i.e. pages with ranking visibility. This is a SUBSET of Google's full index, **not** the complete index: a page can be indexed yet absent here simply because it has no tracked ranking. Treat presence as "has ranking visibility," absence as "no ranking visibility" — never as "indexed" / "deindexed."
 
 4. **Spot-check specific URLs** `on_page_instant_pages` (conditional)
-   - For URLs in the sitemap that are absent from both the Firecrawl map and the indexed-pages list, call `on_page_instant_pages` in batches of up to 100 URLs. Captures live HTTP status code, canonicalization, and basic on-page signals for those specific entries.
+   - For sitemap URLs absent from both the Firecrawl map and the ranking-visibility list, call `on_page_instant_pages` **one URL per call** — this MCP does not batch (one URL each, per CLAUDE.md). Cap the spot-check at ~20 of the highest-value candidates to control call count; each call is a paid DataForSEO call, so note the count toward the budget guard. Captures live HTTP status, canonicalization, and basic on-page signals.
    - Skip this step if the sitemap has fewer than 10 entries (spot-check all via `WebFetch` HEAD requests instead) or if the user passes `--no-spot-check`.
 
 5. **Compute the four diffs**
-   - **Missing from sitemap:** URLs in the Firecrawl map OR in `dataforseo_labs_google_relevant_pages` (status 200, indexable) that don't appear in the sitemap. Probably should be added.
+   - **Missing from sitemap:** URLs in the Firecrawl map OR with ranking visibility in `dataforseo_labs_google_relevant_pages` (status 200, indexable) that don't appear in the sitemap. Probably should be added.
    - **Orphans from sitemap:** URLs in the sitemap that are absent from the Firecrawl map (not reachable via internal links). The sitemap may be the only thing pointing at them — investigate whether they should be linked internally or removed.
    - **Broken sitemap entries:** sitemap URLs that returned non-200 in the `on_page_instant_pages` spot-check or via `WebFetch`. Remove from sitemap or fix the URL.
    - **Lastmod issues:** sitemap entries where (a) all `<lastmod>` dates are identical (lazy generation) or (b) `<lastmod>` is suspiciously old relative to other lastmod dates on the same domain.
@@ -51,71 +51,19 @@ Compare a domain's XML sitemap against Firecrawl-discovered URLs and Google-inde
 
 ## Output format
 
-Create a folder `seo-sitemap-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-sitemap-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-sitemap-{target-slug}-{YYYYMMDD}/
+output/seo-sitemap-{target-slug}-{YYYYMMDD}/
 ├── SITEMAP.md                       (synthesised report — primary deliverable)
 ├── recommended-sitemap-diff.md      (proposed changes: add X, remove Y)
 └── evidence/
-    └── source-data.md               (consolidated raw step output: fetched sitemap content, Firecrawl-discovered URLs if Mode-2 ran, DataForSEO indexed pages, spot-check results, the four diffs — preserved for reproducibility)
+    └── source-data.md               (consolidated raw step output: fetched sitemap content, Firecrawl-discovered URLs if Mode-2 ran, DataForSEO ranking-visibility pages, spot-check results, the four diffs — preserved for reproducibility)
 ```
 
 Top-level: `SITEMAP.md` + `recommended-sitemap-diff.md`. Raw step data is consolidated into `evidence/source-data.md` with per-step section headers — a reader who needs to replay the diff has all raw inputs in one file.
 
-`SITEMAP.md` follows this shape:
-
-```markdown
-# Sitemap Analysis: {domain}
-
-> Sitemap pulled {YYYY-MM-DD} · DataForSEO indexed-pages reference {YYYY-MM-DD}
-
-## Mode
-
-- **Mode-1 (sitemap fetch):** {ran / skipped — no sitemap reachable}
-- **Mode-2 (Firecrawl URL discovery):** {ran with {n} URLs / not triggered / triggered but Firecrawl not installed}
-
-## Health summary
-
-| Metric | Value | Status |
-|---|---|---|
-| Sitemap URLs (Mode-1) | {n} | — |
-| Discovered URLs (Mode-2, if ran) | {n} | — |
-| Google-indexed URLs (DataForSEO) | {n} | — |
-| Missing from sitemap (probable adds) | {n} | {🔴 if >5%} |
-| Orphans from sitemap (probable cuts or link-ins) | {n} | {🟡 if >5} |
-| Broken sitemap entries (non-200) | {n} | {🔴 if >0} |
-| Lastmod issues | {n} | {🟡 if uniform; 🔴 if stale} |
-
-## Recommended changes
-
-### Add to sitemap ({n} URLs)
-- {URL} — found by Firecrawl crawl / Google-indexed, status 200, indexable.
-- ...
-
-### Remove from sitemap ({n} URLs)
-- {URL} — returns {status code}.
-- ...
-
-### Investigate (orphan from sitemap, {n} URLs)
-- {URL} — in sitemap but not reachable via internal links. Either link from {suggested parent} or remove from sitemap.
-- ...
-
-### Fix lastmod ({n} URLs)
-- {URL} — lastmod is {date} but appears stale relative to other pages last modified on {date}.
-- ...
-
-## Validation
-
-- Total URL count: {n} ({✓ under 50k limit | ✗ exceeds — split into sitemap-of-sitemaps})
-- Referenced in robots.txt: {✓/✗}
-- HTTPS consistency: {✓/✗}
-- Encoding: {✓/✗}
-
-## Apply
-- See `recommended-sitemap-diff.md` for the proposed sitemap.xml changes.
-- After applying, re-run this skill to verify.
-```
+`SITEMAP.md` opens with a header (domain + snapshot dates), a Mode block (Mode-1 / Mode-2 status), a Health-summary table (sitemap / discovered / ranking-visibility URL counts + the four diff counts with 🔴/🟡 thresholds), a Recommended-changes section (add / remove / investigate-orphan / fix-lastmod), a Validation block, and an Apply pointer. Full skeleton: `templates/report.md`.
 
 ## Tips
 
@@ -125,4 +73,4 @@ Top-level: `SITEMAP.md` + `recommended-sitemap-diff.md`. Raw step data is consol
 - `<priority>` and `<changefreq>` are dead signals — Google explicitly ignores both. Don't waste time tuning them; if your sitemap generator emits them, the bytes are pure overhead. `<lastmod>` is still consumed, so keep that one accurate.
 - The "investigate orphans" list is often the highest-leverage finding — pages that exist but aren't linked are usually accidentally orphaned, and adding a couple of internal links can revive them.
 - Pair with `seo-drift` to track sitemap composition over time (URL count, lastmod patterns).
-- The Google-indexed pages list from `dataforseo_labs_google_relevant_pages` represents what search engines see, not just what's crawlable — pages can be in Google's index without being internally linked. Cross-referencing both Firecrawl and indexed pages gives a more complete picture than either source alone.
+- The `dataforseo_labs_google_relevant_pages` list is pages with **ranking visibility** in DataForSEO's database, not a full index dump — a subset of what's indexed, but it surfaces pages that rank without being internally linked. Cross-referencing it with the Firecrawl map gives a more complete picture than either source alone; a sitemap URL missing from both means "no ranking visibility and not crawl-reachable," not "deindexed."

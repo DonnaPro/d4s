@@ -1,6 +1,6 @@
 ---
 name: seo-content-audit
-description: E-E-A-T + CITE quality audit for an EXISTING piece of content. Scores Experience, Expertise, Authoritativeness, Trustworthiness, and citation-readiness for AI search; surfaces veto items that block publication; produces a publish / publish-with-fixes / no-publish verdict. Distinct from `seo-content-brief` (produces a NEW article from a topic) and from `seo-page` (URL-level keyword/traffic intelligence). Use when the user asks "content quality audit", "E-E-A-T check", "is this content good", "review this article", "content audit", "citation readiness", or "AI search readiness".
+description: E-E-A-T + CITE quality audit for an EXISTING piece of content. Scores Experience, Expertise, Authoritativeness, Trustworthiness, and citation-readiness for AI search; surfaces veto items that block publication; produces a publish / publish-with-fixes / no-publish verdict. Distinct from `seo-content-brief` (produces a NEW article from a topic) and from `seo-page` (URL-level keyword/traffic intelligence). Use when the user asks "content quality audit", "E-E-A-T check", "is this content good", "review this article", "content audit", or "citation readiness".
 ---
 
 > Example output: [examples/seo-content-audit-stripe-rate-limiters-20260514/VERDICT.md](../../examples/seo-content-audit-stripe-rate-limiters-20260514/VERDICT.md)
@@ -13,7 +13,7 @@ Score an existing piece of content against modern E-E-A-T (Experience, Expertise
 
 - DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available.
-- User provides: (a) the URL of an existing piece of content (or pasted content + intended URL), (b) target keyword the content is meant to rank for. Optional: target country (default `us`).
+- User provides: (a) the URL of an existing piece of content (or pasted content + intended URL), (b) target keyword the content is meant to rank for. Market: per `CLAUDE.md` defaults (UK unless the user specifies another market).
 
 ## Process
 
@@ -35,15 +35,17 @@ Score an existing piece of content against modern E-E-A-T (Experience, Expertise
    - Who is cited in the AIO?
    - Is the candidate URL cited?
    - What patterns characterise the cited sources (publication tier, freshness, structure)?
+   - **Empty result:** if there is no AIO for the keyword, record `no AIO footprint` and continue — the CITE cross-check in step 6 simply notes there's nothing to compare against. Do not retry with keyword variations.
 
 3. **AIO prompt sampling** `ai_opt_llm_ment_search`
    - Sample LLM prompts where the target URL's domain appears as a source.
    - Cross-reference with the candidate URL — does it show up in any sampled prompts?
+   - **Empty result:** if the domain has zero LLM mentions, record `no LLM-mention footprint` and continue. Do not retry.
 
 3b. **GA4 organic traffic on the audited URL** *(only if google-api.json is present, tier ≥ 2)*
    - Replaces the implicit traffic estimation with actual measured organic sessions for the audited URL.
    - Pull the top organic landing pages (last 28 days):
-     `python3 scripts/ga4_report.py --report top-pages --days 28 --json`
+     `python E:\DonnaProSEO\scripts\ga4_report.py --report top-pages --days 28 --json`
    - Filter the result client-side for the audited URL's path. Surface in `VERDICT.md` "## Snapshot" alongside the existing AIO citation cross-check:
      - GA4 organic last 28d: `{sessions} sessions / {users} users / avg engagement {n}s`
      - If the URL doesn't appear in the top-100 organic landing pages: "GA4: not in top-100 organic landing pages last 28d — low or zero traffic."
@@ -76,10 +78,10 @@ Score an existing piece of content against modern E-E-A-T (Experience, Expertise
 
 ## Output format
 
-Create a folder `seo-content-audit-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-content-audit-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-content-audit-{target-slug}-{YYYYMMDD}/
+output/seo-content-audit-{target-slug}-{YYYYMMDD}/
 ├── VERDICT.md                       (publish / publish-with-fixes / no-publish — primary deliverable; inlines content snapshot + AIO context)
 ├── 03-eeat-scoring.md               (60-item rubric scored — load-bearing reference an editor consults item-by-item)
 ├── 04-cite-scoring.md               (30-item rubric scored — load-bearing reference)
@@ -91,67 +93,11 @@ seo-content-audit-{target-slug}-{YYYYMMDD}/
 
 Step files 01 + 02 are inlined as a "Snapshot" / "AIO context" section in `VERDICT.md`; the copies in `evidence/` preserve raw step output. `03-eeat-scoring.md`, `04-cite-scoring.md`, and `05-aio-winner-comparison.md` stay at top level — editors consult the rubric scoring detail directly, and the AIO winner comparison is the live competitive evidence the rubric verdict rests on.
 
-`VERDICT.md` follows this shape (also see `templates/verdict.md`):
-
-```markdown
-# Content Audit: {URL or title}
-
-> Audited {YYYY-MM-DD} · Target keyword: "{keyword}" · Country: {country}
-
-## Verdict: {PUBLISH | PUBLISH WITH FIXES | NO PUBLISH}
-
-{One sentence summary of why}
-
-## Scores
-
-| Dimension | Score | Threshold | Status |
-|---|---|---|---|
-| Experience | {n}% | 75% | {✓/✗} |
-| Expertise | {n}% | 75% | {✓/✗} |
-| Authoritativeness | {n}% | 75% | {✓/✗} |
-| Trustworthiness | {n}% | 75% | {✓/✗} |
-| **E-E-A-T composite** | {n}% | 75% | {✓/✗} |
-| Clear answer | {n}% | 70% | {✓/✗} |
-| Include stats | {n}% | 70% | {✓/✗} |
-| Timestamp | {n}% | 70% | {✓/✗} |
-| Entity authority | {n}% | 70% | {✓/✗} |
-| **CITE composite** | {n}% | 70% | {✓/✗} |
-
-## Veto checks
-
-- Anonymous author on YMYL: {triggered / not triggered}
-- Unsourced factual claims: {triggered / not triggered}
-- Undisclosed affiliate / sponsored: {triggered / not triggered}
-- AI-generated YMYL with no human review: {triggered / not triggered} ({n}/8 AI-content markers fired)
-- ...
-
-## AI Search readiness
-- AIO present for "{keyword}": {yes/no}
-- Top citation patterns: {list}
-- Candidate URL cited in any sampled AIO: {yes/no}
-- Gap vs cited sources: {bulleted gaps}
-
-## Snapshot (measured)
-- GA4 organic last 28d: {sessions} sessions / {users} users / avg engagement {n}s  *(or `not in top-100` / `not configured (Tier 2 required)`)*
-
-## Top 5 fixes
-
-1. {Specific fix linked to a low-scored item or veto}
-2. ...
-5. ...
-
-## Detailed scoring
-
-See:
-- 03-eeat-scoring.md (item-by-item E-E-A-T)
-- 04-cite-scoring.md (item-by-item CITE)
-- 05-aio-winner-comparison.md (gap analysis)
-```
+`VERDICT.md` structure: header → Verdict (publish / publish-with-fixes / no-publish) → Scores table (E-E-A-T ×4 + composite, CITE ×4 + composite) → Veto checks → AI Search readiness → Snapshot (measured, GA4) → Top 5 fixes → Detailed scoring pointers → Recommended next step. Load `templates/verdict.md` for the full mock when writing the deliverable.
 
 ## Tips
 
-- Respect rate limit. AIO + AIO-prompts queries are ~5–10 calls; plenty of headroom.
-- Estimated DataForSEO API cost: ~10–15 calls typical, plus 1 Firecrawl credit per URL audited when Firecrawl is installed (default cap 50 URLs).
+- Respect rate limit. AIO + AIO-prompts queries are ~5–10 calls; plenty of headroom. (Cost estimate lives in step 1's preflight note.)
 - The thresholds (75% E-E-A-T, 70% CITE) are starting points. Tune per domain — a YMYL site (medical, financial) should require higher (85%/80%); a general-interest blog can run lower (65%/60%).
 - The veto checks are not negotiable. A piece with anonymous authorship on a YMYL topic doesn't pass regardless of score.
 - For pieces that score "publish with fixes," the top-5 list is the deliverable. Hand it to the writer; re-audit after fixes.

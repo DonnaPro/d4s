@@ -30,7 +30,7 @@ HEADERS = {"Authorization": f"Basic {CREDS}", "Content-Type": "application/json"
 BASE = "https://api.dataforseo.com/v3"
 
 DOMAIN = "acme.com"
-LOCATION = 2840  # United States
+LOCATION = 2826  # United Kingdom (project default — see CLAUDE.md)
 LANGUAGE = "en"
 
 def post(path, payload):
@@ -89,7 +89,7 @@ dataforseo_labs_search_intent                  // classify by intent
 import csv, itertools
 
 SEEDS = ["seo software", "rank tracker", "keyword research tool"]
-LOCATION = 2840
+LOCATION = 2826  # United Kingdom (project default)
 LANGUAGE = "en"
 
 all_keywords = []
@@ -211,16 +211,16 @@ BRAND = "acme"
 TOPIC = "seo software"
 
 mentions = post("/dataforseo/ai_optimization/llm_mentions/search/live", [
-    {"keyword": BRAND, "location_code": 2840}
+    {"keyword": BRAND, "location_code": 2826}
 ])
 
 top_domains = post("/dataforseo/ai_optimization/llm_mentions/top_domains/live", [
-    {"keyword": TOPIC, "location_code": 2840, "limit": 20}
+    {"keyword": TOPIC, "location_code": 2826, "limit": 20}
 ])
 
 # Test a specific prompt in ChatGPT
 chatgpt_result = post("/dataforseo/ai_optimization/chat_gpt/scraper/live", [
-    {"keyword": f"what is the best {TOPIC}", "location_code": 2840}
+    {"keyword": f"what is the best {TOPIC}", "location_code": 2826}
 ])
 ```
 

@@ -1,6 +1,6 @@
 # SERP Overlap Methodology
 
-> Adapted from `AgriciDaniel/claude-seo`'s `seo-cluster/references/serp-overlap-methodology.md` (MIT). Input source swapped from theirs' WebSearch top-10 scrape to our SE Ranking `DATA_getSerpResults` MCP call so the SERP we cluster on is the same dataset every other skill in this catalogue uses.
+> Adapted from `AgriciDaniel/claude-seo`'s `seo-cluster/references/serp-overlap-methodology.md` (MIT). Input source swapped to DataForSEO's `serp_organic_live_advanced` MCP call so the SERP we cluster on is the same dataset every other skill in this catalogue uses.
 
 ## Core Principle
 
@@ -14,11 +14,11 @@ content architecture rather than relying on keyword text similarity or stemming.
 ### Step 1: Collect SERP Data
 
 For each keyword in the candidate set, retrieve the top 10 organic results via
-`DATA_getSerpResults` (SE Ranking MCP):
+`serp_organic_live_advanced` (DataForSEO MCP):
 
-- Pass the keyword + target country (`source` param maps to the SE Ranking SERP database, e.g. `us`, `uk`, `de`).
-- Default to **SERP-standard mode** (`result_type=standard`) — organic top-10 only, ≈ 3 credits per keyword.
-- Use **SERP-advanced mode** (`result_type=advanced` via `DATA_getSerpTaskAdvancedResults`, ≈ 10 credits per keyword) only if the cluster plan also needs SERP features (AIO presence, PAA, video carousels). For pure clustering, standard is sufficient.
+- Pass the keyword plus `location_name` / `language_code` per `CLAUDE.md` market defaults (UK unless the user specifies).
+- Set **`depth: 10`** — this caps the SERP to the top 10 results, which is all the overlap math needs and keeps the per-call cost down. Do not pull deeper for clustering.
+- One `serp_organic_live_advanced` call per keyword returns organic results **and** all SERP features (AIO, PAA, local pack, video) in the same payload — there is no separate "standard" vs "advanced" endpoint. For pure clustering you use only the organic URLs; the features are already there if a downstream step (`seo-geo`, `seo-sxo`) wants them, so never re-call for features.
 - Extract only organic result URLs (ignore ads, featured snippets, PAA, knowledge panels).
 - Normalize URLs: strip protocol, trailing slash, and query parameters (except meaningful ones like `?id=` for product pages).
 - Store as a set of 10 URLs per keyword.
@@ -49,11 +49,13 @@ Scores in the 3-4 range require tiebreaking:
 
 ## Optimization Strategy
 
-Full pairwise comparison of N keywords requires N*(N-1)/2 SERP fetches. For 40
-keywords, that is 780 comparisons — at ≈ 3 credits per fetch (standard mode) and
-40 unique fetches (each keyword's SERP only fetched once and cached, see § Caching),
-the actual budget is **≈ 120 credits for the SERP pulls**, plus the in-memory pairwise
-overlap math (free). Optimize further by reducing unnecessary checks:
+Full pairwise comparison of N keywords requires N*(N-1)/2 comparisons, but each keyword's
+SERP is fetched **exactly once and cached** (see § Caching), so the API cost is **N calls,
+not N²** — one `serp_organic_live_advanced` call per unique keyword. The pairwise overlap
+math runs in memory (free). For a 40-keyword candidate set that is 40 SERP calls. Costs are
+pure pay-as-you-go (see `CLAUDE.md § DataForSEO cost discipline`); the SKILL's step-4 budget
+guard surfaces the estimate before any SERP is fetched. Optimize further by reducing
+unnecessary checks:
 
 ### Pre-Grouping
 
@@ -100,20 +102,11 @@ Diagonal is always 10 (a keyword overlaps perfectly with itself).
 3. **Never assume related searches belong in the same cluster.** Verify with SERP data.
 4. **Never ignore SERP feature differences.** If keyword A triggers a local pack and
    keyword B triggers a featured snippet, they likely need different content types
-   even with moderate URL overlap. (SERP-advanced mode is required to see this — the
-   standard `DATA_getSerpResults` call returns organic only.)
+   even with moderate URL overlap. `serp_organic_live_advanced` returns these features
+   in the same payload as the organic results, so you can read them without a second call.
 5. **Never treat all domains equally.** Wikipedia and Reddit appear in many SERPs.
    Consider filtering out ubiquitous domains (top 5 most common) before scoring, or
    weighting domain-specific results higher.
-
-## Data Source Priority
-
-1. **`DATA_getSerpResults` (standard mode, default)** — organic top-10 only, ≈ 3 credits
-   per keyword. Sufficient for clustering. Pass the target country as `source`.
-2. **`DATA_getSerpTaskAdvancedResults` (advanced mode)** — organic + SERP features,
-   ≈ 10 credits per keyword. Use only if the cluster plan downstream wants AIO/PAA
-   data per keyword (e.g. you intend to also feed the keyword set into `seo-geo` or
-   `seo-sxo`). Otherwise the extra cost is wasted on a clustering pass.
 
 ## Caching
 

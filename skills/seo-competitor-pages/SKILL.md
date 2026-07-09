@@ -19,7 +19,7 @@ Produce conversion-tuned landing pages targeting comparative-intent keywords ("X
 
 - DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available.
-- User provides: (a) the user's brand/product (the page's hero), (b) target competitor(s) — at least one, optionally up to 5 for an alternatives page, (c) page type (auto-detected from the keyword if user doesn't specify), (d) target country (default `us`).
+- User provides: (a) the user's brand/product (the page's hero), (b) target competitor(s) — at least one, optionally up to 5 for an alternatives page, (c) page type (auto-detected from the keyword if user doesn't specify), (d) market — per CLAUDE.md defaults (UK unless the user specifies).
 
 ## Process
 
@@ -31,9 +31,11 @@ Produce conversion-tuned landing pages targeting comparative-intent keywords ("X
    - For the user's domain, list top organic competitors by `common_keywords` overlap.
    - Validate that the user's named competitor is in the list (or close).
 
-3. **Pull keyword data per brand** `dataforseo_labs_google_ranked_keywords`
-   - For the user's domain and each named competitor, pull top 100 organic keywords.
-   - Identify: keywords each brand owns exclusively, keywords both rank for, gaps.
+3. **Keyword overlap between the brands (primary)** `dataforseo_labs_google_domain_intersection`
+   - This is the primary keyword-comparison path. Call with `target1={user's domain}`, `target2={competitor}`, `location_name`/`language_code` per CLAUDE.md, `limit` + server-side `filters`:
+     - `intersections: true` → keywords **both** brands rank for (shared battleground, feeds the feature-matrix dimensions).
+     - `intersections: false` (run per direction) → keywords **one** brand owns that the other doesn't (the "when to choose X" evidence).
+   - Optional supporting evidence (demoted, off by default): per-brand `dataforseo_labs_google_ranked_keywords` (top 100, `limit` + filters) only if the user wants full footprints beyond the intersection.
 
 4. **Pull comparative SERPs** `serp_organic_live_advanced` and `dataforseo_labs_google_related_keywords`
    - For "X vs Y" / "alternatives to X" / "best X for Y" target keyword(s):
@@ -47,7 +49,7 @@ Produce conversion-tuned landing pages targeting comparative-intent keywords ("X
      - Schema types from `<script type="application/ld+json">` blocks (`Product` ×N, `BreadcrumbList`, `FAQPage`, `Review`, `AggregateRating`).
      - `og:title` / `og:description` / `og:image` / `twitter:card` from `metadata`.
      - `<title>` and meta description lengths from real HTML.
-   - **If Firecrawl unavailable:** WebFetch portion runs unchanged. The "schema types" line in `evidence/04-existing-pages-teardown.md` reads `(skipped — Firecrawl required for JSON-LD)`. Schema generation in step 8 falls back to a default `Product + BreadcrumbList + FAQPage` template instead of mirroring whatever the winners use.
+   - **If Firecrawl unavailable:** WebFetch portion runs unchanged. The "schema types" line in `evidence/04-existing-pages-teardown.md` reads `(skipped — Firecrawl required for JSON-LD)`. Schema generation in step 7 falls back to a default `Product + BreadcrumbList + FAQPage` template instead of mirroring whatever the winners use.
    - This anchors the draft in observed-rewarded-pattern.
 
 5b. **Bulk competitor scrape** `mcp__firecrawl-mcp__firecrawl_scrape` (optional, opt-in)
@@ -56,15 +58,12 @@ Produce conversion-tuned landing pages targeting comparative-intent keywords ("X
    - Output `competitor-elements.csv` — one row per competitor URL × these signals.
    - Cost: 1 Firecrawl credit per URL. Surface estimate before running; refuse >50 URLs without `--confirm-cost`.
 
-6. **Pull keyword comparison data** `dataforseo_labs_google_domain_intersection` (if available for the brands)
-   - Side-by-side keyword overlap.
-
-7. **Build feature matrix**
+6. **Build feature matrix**
    - Dimensions inferred from the top SERP winners (e.g., "Pricing", "Free tier", "Integrations", "Support tiers", "Best for").
    - Cells: ✓ / ✗ / partial / "TBD — confirm with PM" placeholders for fields you can't auto-infer.
    - Where DataForSEO data informs a cell (e.g., "ranks for X enterprise keywords"), pull the number.
 
-8. **Synthesise** `COMPARISON.md`
+7. **Synthesise** the page draft (`COMPARISON.md` for vs; `ALTERNATIVES.md` / `BEST-OF.md` for the other types — same evidence, different skeleton from `templates/`)
    - Hero (target keyword in H1, balanced positioning).
    - TL;DR / verdict box in first 200 words.
    - Feature matrix.
@@ -76,11 +75,11 @@ Produce conversion-tuned landing pages targeting comparative-intent keywords ("X
 
 ## Output format
 
-Create a folder `seo-competitor-pages-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-competitor-pages-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-competitor-pages-{target-slug}-{YYYYMMDD}/
-├── COMPARISON.md                     (the page draft — primary deliverable)
+output/seo-competitor-pages-{target-slug}-{YYYYMMDD}/
+├── COMPARISON.md                     (the page draft — primary deliverable; named ALTERNATIVES.md / BEST-OF.md for those page types)
 ├── 05-feature-matrix.md              (inferred dimensions × brands — load-bearing reference for PMs/writers)
 ├── schema.jsonld                     (paste-ready Product + Breadcrumb + FAQ — load-bearing artefact for engineering)
 ├── 05b-competitor-elements.csv       (only if --bulk-scrape ran: competitor URL × on-page-element grid)
@@ -93,72 +92,18 @@ seo-competitor-pages-{target-slug}-{YYYYMMDD}/
 
 Top-level: `COMPARISON.md` + `05-feature-matrix.md` + `schema.jsonld`. The 01–04 step files preserve raw API/scrape outputs in `evidence/`. `05b-competitor-elements.csv` only appears when `--bulk-scrape` was passed.
 
-`COMPARISON.md` for an "X vs Y" page follows this shape:
+Three page-type skeletons live in `templates/`, one per page type this skill produces — load the one matching the detected type:
+- `templates/comparison.md` — "X vs Y" head-to-head (hero → TL;DR verdict → at-a-glance matrix → dimension sections → when-to-choose-each → PAA FAQ → CTA → schema).
+- `templates/alternatives.md` — "Alternatives to X" listicle (positions the user's product as one of N, numbered).
+- `templates/best-of.md` — "Best X for Y" segmented by use case / audience.
 
-```markdown
-# {User's Brand} vs {Competitor}: 2026 Comparison
-
-> Updated {YYYY-MM-DD}. Compare {Brand A} and {Brand B} on pricing, features, integrations, and best-fit use case.
-
-## TL;DR
-{One paragraph balanced verdict — when to choose A, when to choose B}
-
-## At a glance
-
-| Dimension | {Brand A} | {Brand B} |
-|---|---|---|
-| Starting price | {$X/mo} | {$Y/mo} |
-| Free tier | {✓/✗} | {✓/✗} |
-| Best for | {use case} | {use case} |
-| Integrations | {n} | {n} |
-| Support | {tier} | {tier} |
-| ... | | |
-
-## {Dimension 1 header — e.g., Pricing}
-{Side-by-side detail, balanced. Avoid hyperbole.}
-
-## {Dimension 2 header — e.g., Features}
-{...}
-
-## {Dimension 3 header — e.g., Integrations}
-{...}
-
-## {Dimension 4 header — e.g., Support}
-{...}
-
-## When to choose {Brand A}
-- {scenario 1}
-- {scenario 2}
-- {scenario 3}
-
-## When to choose {Brand B}
-- {scenario 1}
-- {scenario 2}
-- {scenario 3}
-
-## FAQ
-**{PAA question 1}**
-{Answer}
-
-**{PAA question 2}**
-{Answer}
-
-**{PAA question 3}**
-{Answer}
-
-## Get started
-{Brand A} CTA — {link}
-{Brand B} CTA — {link if balanced; otherwise drop}
-
-## Schema
-See `schema.jsonld` — paste into `<head>`.
-```
+All three carry the same feature-matrix, PAA-FAQ, and schema-pointer quality bar as the comparison skeleton. Deliverable filename matches the type: `COMPARISON.md` / `ALTERNATIVES.md` / `BEST-OF.md`.
 
 ## Tips
 
 - **Balance is conversion.** Pages that pretend the user's product is always better lose trust and rankings. Honest assessments outperform partisan ones.
 - Respect rate limit. Step 5 (fetching top 3 SERP winners) takes 3 WebFetch calls + earlier MCP queries.
-- Cost: typical API usage for ~15–25 DataForSEO calls, +3 Firecrawl credits for the schema/og benchmark in step 5, +1 Firecrawl credit per URL in step 5b (opt-in only). Pass `--no-firecrawl` to skip both Firecrawl steps.
+- Cost: ~8 DataForSEO calls typically (competitor context + the domain_intersection comparison + comparative SERP/PAA pulls; per-brand ranked-keyword pulls are optional evidence, off by default), +3 Firecrawl credits for the schema/og benchmark in step 5, +1 Firecrawl credit per URL in step 5b (opt-in only). Pass `--no-firecrawl` to skip both Firecrawl steps.
 - **Schema:** use `Product` for both products in a vs page, plus `BreadcrumbList`, plus `FAQPage` if the FAQ section is real Q&A (not a manufactured one).
 - For "alternatives to X" pages, position the user's product as one of N (typically 5–10), not as #1. Numbered listicles convert better than self-promotional alternatives pages.
 - For "best X for Y" pages, segment by use case explicitly — "best for solo developers" vs "best for enterprise teams" — this lets you win multiple long-tail variants.

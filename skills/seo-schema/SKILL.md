@@ -16,11 +16,10 @@ Detect, validate, and generate Schema.org JSON-LD for a page. Output is paste-re
 
 ## Process
 
-1. **Fetch HTML** `mcp__firecrawl-mcp__firecrawl_scrape` (preferred) or degrade
-   - **Cost note.** Firecrawl: 1 credit for the target URL, +10 credits if step 7 (competitor benchmark) runs (1 per top-10 SERP result). User may pass `--no-firecrawl` to force the degraded path (generate-only mode) for credit conservation.
-   - **If Firecrawl available:** scrape the target URL. For SPAs, pass `waitFor: 2000` (or a CSS selector for the main content) so the JS-rendered DOM is captured. Use the response's `html` for JSON-LD parsing in step 2 and `metadata` for canonical/robots cross-reference.
-   - **If Firecrawl unavailable:** skip steps 2, 3, and 7 entirely (they all need raw HTML). Steps 4–6 still run — the skill becomes "generate-only", producing recommended JSON-LD blocks from intent detection without comparing to what's on the page. Surface clearly in `SCHEMA.md`: `Existing-schema detection: skipped — Firecrawl required (WebFetch returns markdown only). Install via extensions/firecrawl/install.sh.`
-   - Even with Firecrawl: if JSON-LD blocks appear only after JS render, flag in the output: "JS-rendered schema may not be detected by all crawlers — server-side render JSON-LD where possible."
+1. **Preflight & fetch HTML.** Run the shared preflight — see `skills/seo-firecrawl/references/preflight.md` (Firecrawl availability, budget guard) and `CLAUDE.md` (market defaults, cost discipline). Skill-specific notes:
+   - Typical DataForSEO calls: 0 (1 `serp_organic_live_advanced` only if step 7 benchmark runs). Firecrawl: **required** for detect/validate — WebFetch returns markdown only and strips every `<script type="application/ld+json">` block. Google APIs: not used.
+   - **Firecrawl available:** scrape the target URL with `mcp__firecrawl-mcp__firecrawl_scrape`. For SPAs pass `waitFor: 2000` (or a main-content CSS selector) so the JS-rendered DOM is captured. Use the response's `html` for step 2 and `metadata` for canonical/robots cross-reference. If JSON-LD appears only after JS render, flag: "JS-rendered schema may not be detected by all crawlers — server-side render JSON-LD where possible."
+   - **Firecrawl unavailable (or `--no-firecrawl`):** skip steps 2, 3, and 7 (all need raw HTML). Steps 4–6 still run — "generate-only" mode. Surface in `SCHEMA.md`: `Existing-schema detection: skipped — Firecrawl required (WebFetch returns markdown only).`
 
 2. **Detect existing schema** (requires Firecrawl HTML from step 1)
    - From the returned `html`: extract every `<script type="application/ld+json">` block.
@@ -86,46 +85,23 @@ seo-schema-{target-slug}-{YYYYMMDD}/
 `SCHEMA.md` follows this shape:
 
 ```markdown
-# Schema Markup: {URL}
-
-> Snapshot dated {YYYY-MM-DD}.
+# Schema Markup: {URL}   (snapshot {YYYY-MM-DD})
 
 ## Currently present
 - `Article` — valid ✓
 - `BreadcrumbList` — invalid ✗ (missing `position` on item 2)
-- ...
 
 ## Recommended additions
-- `FAQPage` — page has 6 visible Q&A blocks but no FAQ schema. Adding this is eligible for FAQ rich results (subject to Google's 2024+ tightening — see references/google-rich-results.md).
-- `HowTo` — ...
+- `FAQPage` — 6 visible Q&A blocks, no FAQ schema. Eligible for FAQ rich results (subject to Google's 2024+ tightening — see references/google-rich-results.md).
 
 ## Paste these into the `<head>` of the page
-
-### FAQPage
-\`\`\`html
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [...]
-}
-</script>
-\`\`\`
-
-### ... (per generated block)
+### FAQPage → one `<script type="application/ld+json">` block per generated type
 
 ## Validation pass
-- All generated blocks parse cleanly ✓
-- All required fields filled ({n} {REPLACE: ...} placeholders remain — see below)
-- {REPLACE: ...} placeholders to fill manually:
-  - article.jsonld → `image` (need a hero image URL ≥ 1200×800)
-  - ...
+- All generated blocks parse cleanly ✓; {n} {REPLACE: ...} placeholders remain to fill manually (e.g. article.jsonld → `image`).
 
 ## Install
-1. Copy each `<script>` block above.
-2. Paste into the `<head>` of the relevant page (or the global `<head>` template, gated by page type).
-3. Test with [Google's Rich Results Test](https://search.google.com/test/rich-results).
-4. Submit the URL to GSC for re-indexing if changes are critical.
+Copy each block → paste into the page `<head>` (or type-gated global template) → test in [Google's Rich Results Test](https://search.google.com/test/rich-results) → submit to GSC if critical.
 ```
 
 ## Tips

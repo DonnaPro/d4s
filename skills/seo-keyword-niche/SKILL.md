@@ -11,24 +11,26 @@ Mine the long tail for content opportunities. Pulls longtail variants, question-
 ## Prerequisites
 
 - DataForSEO MCP server connected.
-- User provides: a seed topic (e.g. "running shoes", "tax preparation"), or 2–5 seed keywords. Target country (default `us`). Optional: minimum volume threshold (default: 50/mo for niche skill — lower than `seo-keyword-cluster`'s 100), maximum KD (default: 40 for accessibility).
+- User provides: a seed topic (e.g. "running shoes", "tax preparation"), or 2–5 seed keywords. Market: per `CLAUDE.md` defaults (UK unless the user specifies another market). Optional: minimum volume threshold (default: 50/mo for niche skill — lower than `seo-keyword-cluster`'s 100), maximum KD (default: 40 for accessibility).
 
 ## Process
 
 1. **Validate & preflight**
    - Confirm seeds make sense (not too broad, not branded, not single-letter).
+   - See `skills/seo-firecrawl/references/preflight.md` (budget guard) and `CLAUDE.md` (market defaults, cost discipline). Typical DataForSEO calls: ~10–14 (Labs expansion across seeds + a handful of SERP samples). Firecrawl and Google APIs: not used.
+   - **Cost discipline for all Labs calls in steps 2–4:** always pass `limit` and server-side `filters` — `filters: [["keyword_info.search_volume", ">=", {min_volume}], "and", ["keyword_properties.keyword_difficulty", "<=", {max_kd}]]`. Filter server-side; never pull thousands of rows to trim client-side. Cap the total candidate pool at ~1,000 keywords across all seeds — once reached, stop expanding.
 
 2. **Longtail expansion** `dataforseo_labs_google_keyword_suggestions`
-   - For each seed: pull longtail variants (typically 3+ words, lower individual volume, lower KD).
-   - Target: 200–500 longtail candidates per seed.
+   - For each seed: pull longtail variants (typically 3+ words, lower individual volume, lower KD). Apply the `limit` + `filters` above (e.g. `limit: 300` per seed).
+   - **Empty-result handling:** if a seed returns fewer than 20 suggestions, it is too narrow (or the filters are too tight). Widen the seed and/or lower `min_volume` / raise `max_kd`, retry once, and note the adjustment in the plan.
 
 3. **Question expansion** `dataforseo_labs_google_keyword_ideas`
-   - For each seed: pull question-phrased keywords.
+   - For each seed: pull question-phrased keywords. Apply `limit` + `filters` as above.
    - These are gold for content mining — explicit user intent in the keyword.
 
-4. **Related expansion** `dataforseo_labs_google_related_keywords` and `dataforseo_labs_google_keyword_suggestions`
-   - For each seed: pull related + similar keywords.
-   - Catches semantic neighbours that longtail expansion missed.
+4. **Related expansion** `dataforseo_labs_google_related_keywords`
+   - For each seed: pull related + similar keywords (with `limit` + `filters`).
+   - Catches semantic neighbours that longtail expansion missed. (Do not re-call `keyword_suggestions` here — step 2 already covered it.)
 
 5. **Filter and clean**
    - Remove keywords below `min_volume` and above `max_kd`.
@@ -52,31 +54,16 @@ Mine the long tail for content opportunities. Pulls longtail variants, question-
    - Internal-linking automation: how to link pages within the tier (hub-spoke from a category page, or peer-to-peer for genuinely flat structures).
 
 9. **Quality gates** (anti-thin-content guardrails)
-   - **Minimum unique data per page:** template fields must produce ≥ 5 unique attributes (counts, prices, names, dates, etc.). Pages without 5+ unique attributes are duplicates in disguise — skip those keyword variants.
-   - **Minimum word count:** 600 words effective content (excludes navigation, footer, boilerplate).
-   - **Schema requirement:** every templated page gets `Article` (or relevant type) + `BreadcrumbList`.
-   - **Index/noindex split:** if the variant doesn't pass the unique-data threshold, generate the page but `noindex` it.
-
-### 9a. Programmatic publishing — extra gates
-
-Most users discover this skill because they want to ship pages at scale (programmatic SEO, data-driven directories, location pages). Programmatic publishing is the highest-risk path for spam-classifier blowback. Apply these *in addition* to the gates above whenever the proposed tier expects to ship 50+ templated pages.
-
-- **Per-row uniqueness threshold (≥ 30% varying fields).** Of the template's content-producing fields (excluding nav/footer boilerplate), **at least 30% must hold values that differ from the median sibling page**. A 12-field template where 9 fields are identical across pages is templated mush — Google's spam systems are well-tuned for this since the 2024 core update. Compute: `varying_fields / content_fields ≥ 0.30` per row vs the cluster median.
-- **Min unique-fact count vs parent + sibling (≥ 5 facts).** Each row carries at least 5 facts that *do not appear on the parent hub page or any sibling page in the same cluster*. Facts = numbers, dates, named entities, original quotes, photos. Synonym shuffles don't count. Sample 10 rows manually before greenlighting the tier.
-- **Data-source independence.** Don't auto-publish from a single source (one CSV, one API, one scrape). If the page's only differentiator is a row from `cities.csv`, the page is a CSV row dressed as content — likely thin. Combine ≥ 2 independent data sources per page.
-- **Index-bloat circuit-breaker.** After the first 50 pages ship, monitor GSC. If the index-coverage rate drops below 60% (Google indexed <60% of submitted), pause the tier and re-audit. Continuing past this signal compounds bloat across the rest of the tier.
-- **Crawl-budget honesty.** Sites under 50k pages can usually crawl whatever you ship. Sites >50k must factor in crawl-budget cost: every thin programmatic page steals attention from the cornerstone content. If the site is in this band and the unique-fact count is borderline, default to noindex.
-
-These gates are not negotiable for the programmatic path. If the proposed tier can't pass them, the right answer is fewer pages, not lower thresholds.
+   - Apply the full gate set from `references/quality-gates.md`: gates 1–5 always; gates 6–9 (programmatic-only) additionally whenever the proposed tier expects to ship 50+ templated pages. These gates are not negotiable — if the proposed tier can't pass them, the answer is fewer pages, not lower thresholds. Write the applicable gates into `07-quality-gates.md`.
 
 10. **Synthesise** `KEYWORD-NICHE-PLAN.md`
 
 ## Output format
 
-Create a folder `seo-keyword-niche-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-keyword-niche-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-keyword-niche-{target-slug}-{YYYYMMDD}/
+output/seo-keyword-niche-{target-slug}-{YYYYMMDD}/
 ├── KEYWORD-NICHE-PLAN.md           (synthesised plan — primary deliverable)
 ├── keywords.csv                    (all enriched keywords with cluster + intent — load-bearing CSV the publishing team paste into CMS/sheets)
 ├── 06-template-spec.md             (fields, URL pattern, sample pages — load-bearing reference writers consult directly)
@@ -91,75 +78,7 @@ seo-keyword-niche-{target-slug}-{YYYYMMDD}/
 
 Top-level: `KEYWORD-NICHE-PLAN.md` + `keywords.csv` + `06-template-spec.md` + `07-quality-gates.md`. Writers consult the template spec directly when authoring; release gates consult the quality gates directly. The 01–05 step files preserve raw API/clustering outputs in `evidence/`.
 
-`KEYWORD-NICHE-PLAN.md` shape:
-
-```markdown
-# Keyword Niche Plan: {topic}
-
-> Generated {YYYY-MM-DD} · Country: {country} · Seeds: {list}
-
-## Inventory
-- Longtail keywords mined: {n}
-- Question keywords: {n}
-- After filter (min-vol {n}, max-kd {n}): {n}
-- Clusters formed: {n}
-- Estimated combined monthly volume: {n}
-
-## Recommended content tier
-
-### Template
-**URL pattern:** `/{category}/{slug}/`
-
-**Required fields per page:**
-- `{slug}` — URL-friendly identifier
-- `{H1}` — page primary heading
-- `{TL;DR}` — first 200 words direct answer
-- `{primary_keyword}` — target keyword
-- `{related_keywords}` — secondary keywords from cluster
-- `{unique_attributes}` — list of ≥ 5 differentiating attributes (numbers, names, dates)
-- `{related_pages}` — internal-link list (3–5 sibling pages)
-- `{schema_type}` — Article/Product/Other
-- `{datestamp}` — last-updated date
-
-**Sample pages:** see `06-template-spec.md` for 3 fully-spec'd wireframes.
-
-## Cluster build order (top 10 by priority)
-
-| Rank | Cluster | Volume (combined) | Weighted KD | Dominant page type | Pages to ship |
-|---|---|---|---|---|---|
-| 1 | {cluster name} | {n} | {kd} | {type} | {n} |
-| ... |
-
-## Quality gates (do not ship pages that fail)
-
-1. **Unique-data threshold:** each page has ≥ 5 unique attributes vs sibling pages in the same cluster.
-2. **Minimum word count:** 600 words effective content.
-3. **Schema:** `Article` + `BreadcrumbList` (or relevant `@type` for the page).
-4. **Internal links:** ≥ 3 outbound to siblings, ≥ 1 inbound from category hub.
-5. **Index/noindex:** noindex pages that don't pass the unique-data threshold.
-
-### Programmatic-only gates (apply when tier ships 50+ pages)
-
-6. **Per-row uniqueness ≥ 30%:** at least 30% of content-producing fields hold values that differ from the cluster median.
-7. **Min unique facts vs parent + sibling (≥ 5):** five facts per row that don't appear on the parent hub or any sibling.
-8. **Data-source independence:** ≥ 2 independent data sources per page (no single-CSV pages).
-9. **Index-bloat circuit-breaker:** pause tier if GSC index-coverage <60% after the first 50 pages.
-
-## Scaling estimate
-- Clusters: {n}
-- Pages per cluster (median): {n}
-- Total pages: {n}
-- At {pages/week} cadence: {n weeks} to ship the tier.
-- Crawl-budget impact (for sites > 10k pages): noindex strategy keeps thin variants out of the index.
-
-## Risks / monitoring
-- **Thin-content penalty:** the quality gates above are the guardrail. Audit at scale via `seo-technical-audit` after first 100 pages ship.
-- **Index bloat:** monitor in GSC; if newly indexed pages don't accrue impressions in 60 days, candidate for noindex/consolidate.
-- **Cannibalization:** monitor with `seo-subdomain` + `seo-page` after first 50 pages.
-
-## Recommended next step
-Build a small pilot — 10 pages from the top cluster — before committing to the full tier. Apply quality gates rigorously to the pilot. Re-audit after 60 days; iterate the template based on which pilot pages indexed and ranked.
-```
+`KEYWORD-NICHE-PLAN.md` structure: header (topic, date, market, seeds) → Inventory (mined / filtered / cluster counts) → Recommended content tier (template + URL pattern + required fields) → Cluster build order (top 10 by priority) → Quality gates checklist (references gates 1–9 in `references/quality-gates.md`) → Scaling estimate → Risks / monitoring → Recommended next step (10-page pilot first). Load `templates/report.md` for the full mock when writing the deliverable.
 
 `keywords.csv` columns: `keyword,volume,kd,cpc,intent,cluster,role_in_cluster,dominant_page_type,unique_attributes_estimate`
 

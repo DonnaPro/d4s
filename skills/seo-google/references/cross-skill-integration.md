@@ -9,7 +9,7 @@ The pattern was adapted from `AgriciDaniel/claude-seo`'s wiring across `seo-audi
 Add this near the top of the skill's Process steps, immediately after the existing preflight (credit balance / Firecrawl detection):
 
 ```
-**Google data availability check.** Run `python3 scripts/google_auth.py --check --json`
+**Google data availability check.** Run `python E:\DonnaProSEO\scripts\google_auth.py --check --json`
 and parse the result. If `tier >= 0` (any creds present), Google enrichment runs in step
 N (see below). If `tier == -1` or the file is missing, the skill proceeds without
 Google enrichment and notes "Google field data: not configured (run `bash extensions/google/install.sh`)" in the deliverable.
@@ -38,10 +38,10 @@ Replaces the audit's lab-only CWV with actual Chrome user metrics from CrUX, and
 
 ```bash
 # Domain-level CrUX (origin)
-python3 scripts/pagespeed_check.py "https://{domain}" --crux-only --json
+python E:\DonnaProSEO\scripts\pagespeed_check.py "https://{domain}" --crux-only --json
 
 # 25-week trend (catches degradation we'd otherwise miss until next month's audit)
-python3 scripts/crux_history.py "https://{domain}" --origin --json
+python E:\DonnaProSEO\scripts\crux_history.py "https://{domain}" --origin --json
 ```
 
 Surface in `TECH-AUDIT.md` as "## Core Web Vitals (field data)" with p75 LCP / INP / CLS, source label "CrUX 28-day origin", and the 25-week trend direction.
@@ -53,14 +53,14 @@ If CrUX has no field data for the origin (low-traffic site), surface "CrUX: insu
 For each of the top 5 traffic URLs from step 5 (or homepage + key landing pages):
 
 ```bash
-python3 scripts/gsc_inspect.py "{url}" --site-url "{config.default_property}" --json
+python E:\DonnaProSEO\scripts\gsc_inspect.py "{url}" --site-url "{config.default_property}" --json
 ```
 
 Capture `indexStatusVerdict`, `coverageState`, `googleCanonical` vs `userCanonical`, and `lastCrawlTime`.
 
 Cross-check against the audit's noindex / canonical findings:
 - GSC says `INDEXED` but audit flagged `noindex` → audit is stale, flag for re-audit.
-- GSC says `EXCLUDED` for a "healthy" page → hidden indexability issue invisible to SE Ranking's audit.
+- GSC says `EXCLUDED` for a "healthy" page → hidden indexability issue invisible to the crawl-based audit.
 - `userCanonical ≠ googleCanonical` on a top-traffic page → elevated to Critical in the Top-10 fix list regardless of `severity-mapping.md` defaults.
 
 Surface in `TECH-AUDIT.md` as "## Indexation reality check (GSC URL Inspection)" with one row per URL.
@@ -69,15 +69,15 @@ If property not verified in this account: "GSC: {domain} not verified — add it
 
 ### `seo-page` — GSC URL performance + URL Inspection (Tier 1 — `gsc`, `inspect` available)
 
-Replaces inferred-from-SE-Ranking traffic with first-party Google data for the target URL.
+Replaces the inferred/estimated traffic with first-party Google data for the target URL.
 
 ```bash
 # GSC search analytics for the URL (requires default_property in config to be set
 # to a verified property that owns this URL — sc-domain:example.com)
-python3 scripts/gsc_query.py --property "{config.default_property}" --url "{target_url}" --days 28 --json
+python E:\DonnaProSEO\scripts\gsc_query.py --property "{config.default_property}" --url "{target_url}" --days 28 --json
 
 # URL Inspection (real indexation status, canonical Google sees, last crawl date)
-python3 scripts/gsc_inspect.py "{target_url}" --site-url "{config.default_property}" --json
+python E:\DonnaProSEO\scripts\gsc_inspect.py "{target_url}" --site-url "{config.default_property}" --json
 ```
 
 Surface in `PAGE.md` "## Snapshot" as new rows:
@@ -96,7 +96,7 @@ If the URL's domain isn't a verified GSC property, surface "GSC: {target_domain}
 Replaces estimated traffic with measured organic traffic for the audited URL.
 
 ```bash
-python3 scripts/ga4_report.py --report top-pages --days 28 --json
+python E:\DonnaProSEO\scripts\ga4_report.py --report top-pages --days 28 --json
 ```
 
 Filter the result client-side for the audited URL's path. Surface in `VERDICT.md` "## Snapshot" alongside the existing AIO citation cross-check:
@@ -122,7 +122,7 @@ if not validate_url(target_url):
 Or invoke as a one-liner:
 
 ```bash
-python3 -c "from scripts.google_auth import validate_url; import sys; sys.exit(0 if validate_url('{url}') else 1)"
+python -c "from scripts.google_auth import validate_url; import sys; sys.exit(0 if validate_url('{url}') else 1)"
 ```
 
 `validate_url()` (defined at `scripts/google_auth.py:366`) rejects: loopback (127.0.0.1, ::1, localhost), RFC1918 private ranges (10/8, 172.16/12, 192.168/16), link-local (169.254/16), and Google metadata endpoints. Refuses non-http(s) schemes.
@@ -133,10 +133,10 @@ python3 -c "from scripts.google_auth import validate_url; import sys; sys.exit(0
 
 ```bash
 # CWV drift over 25 weeks (origin or per-URL based on baseline scope)
-python3 scripts/crux_history.py "{baseline_url_or_origin}" --json
+python E:\DonnaProSEO\scripts\crux_history.py "{baseline_url_or_origin}" --json
 
 # Indexation drift: re-run Inspection on each baselined URL and diff
-python3 scripts/gsc_inspect.py "{url}" --site-url "{config.default_property}" --json
+python E:\DonnaProSEO\scripts\gsc_inspect.py "{url}" --site-url "{config.default_property}" --json
 ```
 
 Compare against the previous baseline's stored CrUX + Inspection JSON. New drift triggers:
@@ -162,9 +162,9 @@ Plan composes other skills' outputs. If creds are present and the user hasn't al
 > before re-running this plan. Continue without Google enrichment? (y/n)
 ```
 
-If user continues, plan proceeds with SE Ranking data only and notes the limitation in PLAN.md. If user opts to run `seo-google` first, plan exits and re-runs after.
+If user continues, plan proceeds with DataForSEO data only and notes the limitation in PLAN.md. If user opts to run `seo-google` first, plan exits and re-runs after.
 
-This is the lightest possible auto-spawn — plan doesn't dispatch the skill itself (transferring friction is theirs' anti-pattern we critiqued in EVAL_RESULT_v2.md), it just tells the user there's a richer path available.
+This is the lightest possible auto-spawn — plan doesn't dispatch the skill itself, it just tells the user there's a richer path available.
 
 ## Failure modes (handle gracefully across all skills)
 
@@ -177,11 +177,11 @@ This is the lightest possible auto-spawn — plan doesn't dispatch the skill its
 | Insufficient CrUX data | `pagespeed_check.py --crux-only` returns `{"crux": null}` | Note "CrUX: insufficient field data for `{url}` (low traffic)" and skip CrUX only |
 | Rate-limit hit | Script returns HTTP 429 | Note "Google API rate-limit reached — try again in 1h" and skip the affected enrichment |
 
-A skill **never** fails the run because Google enrichment failed. Enrichment is optional uplift; the SE Ranking-based deliverable always ships.
+A skill **never** fails the run because Google enrichment failed. Enrichment is optional uplift; the DataForSEO-based deliverable always ships.
 
 ## Why this pattern (vs spawning `seo-google` as a sub-skill)
 
 - One Python call per enrichment, returns JSON, parsed in-line — no extra agent context, no extra latency.
 - Each skill stays self-contained; no orchestration logic in the calling skill.
-- Failure-isolated: a failed Google call doesn't pollute the SE Ranking-based primary deliverable.
+- Failure-isolated: a failed Google call doesn't pollute the DataForSEO-based primary deliverable.
 - Mirrors the upstream wiring (`AgriciDaniel/claude-seo`'s `seo-technical/SKILL.md:164` invokes the same scripts directly).

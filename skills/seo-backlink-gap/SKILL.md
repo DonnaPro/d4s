@@ -11,27 +11,32 @@ Produce an actionable link-prospecting list: domains linking to your top competi
 
 ## Prerequisites
 
-- DataForSEO MCP server connected.
+- DataForSEO MCP server connected. All DataForSEO APIs (incl. Backlinks) are pay-as-you-go with no monthly minimum — see `CLAUDE.md`.
 - Claude's `WebFetch` tool available (used for prospect scoring and topical relevance checks).
-- User provides: (a) target domain, (b) 3 to 5 competitor domains, and optionally (c) minimum Domain Rank (default: 25), (d) dofollow-only filter (default: true), (e) minimum intersection count (default: linked by at least 2 of the N competitors).
+- User provides: (a) target domain, (b) 3 to 5 competitor domains, and optionally (c) minimum Domain Rank (default: 25), (d) dofollow-only (default: true), (e) minimum intersection count (default: linked by at least 2 of the N competitors).
 
 ## Process
 
-1. **Baseline target backlinks** `backlinks_referring_domains`, `backlinks_summary`
-   - Pull the target domain's existing referring domains to build an exclusion set.
-   - Save count and summary metrics for the report.
+1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` (budget guard, Firecrawl availability, Google APIs) and `CLAUDE.md` (market defaults, cost discipline). Skill-specific notes:
+   - Typical DataForSEO calls: ~3–4 (1 intersection + 1 bulk-ranks + up to a small batch of anchor pulls, capped at the top 25). Well under the budget-guard threshold.
+   - Firecrawl: optional (WebFetch fallback for prospect topical-relevance checks). Google APIs: not used.
 
-2. **Per-competitor referring domains** `backlinks_referring_domains`
-   - For each competitor, pull referring domains with `dofollow_only=true` and `min_domain_rank={threshold}`.
-   - Collect as a dict keyed by referring domain with the list of competitors linking to it.
+2. **Find the gap in one call** `backlinks_domain_intersection`
+   - This is the primary data path — it replaces per-competitor pulls + manual intersection. Set:
+     - `targets`: the competitor domains (up to 20).
+     - `exclude_targets`: `[{target domain}]` — the endpoint returns referring domains that link to the competitors but **not** to the target, so the exclusion is done server-side (no separate baseline pull of the target's own backlinks needed).
+     - `filters`: `[["dofollow","=",true],"and",["rank",">",{min_domain_rank}]]` (defaults: dofollow true, rank > 25). Dofollow + rank are the two levers; drop/relax either in step 3 if the result is empty.
+     - `limit`: 100. `order_by`: `["rank,desc"]`.
+   - From the response, retain rows whose intersection count meets the minimum (default: links to ≥2 of the N competitors).
+   - Optionally pull `backlinks_summary` on the target once, purely for report context (its existing referring-domain count) — cheap, skip if not needed.
 
-3. **Intersection**
-   - Retain referring domains that link to at least the minimum number of competitors.
-   - Exclude any domain already in the target's backlink set.
+3. **Empty / thin intersection handling.**
+   - If the call returns 0 (or fewer than ~5) rows — common when competitors are young or share few backlinks — do **not** conclude "no gap" yet. Widen before giving up: (a) lower the `rank` threshold, (b) drop the `dofollow` filter, (c) add more or closer competitors, (d) relax min-intersection to 1. Re-run the single call with the relaxed filters.
+   - Record in `REPORT.md` which relaxations were applied and that the prospect-quality bar was correspondingly lowered.
 
-4. **Enrichment** `backlinks_bulk_ranks`, `backlinks_anchors`
-   - For each candidate, pull: Domain Rank, Page Rank of the linking page, linking-to-competitor anchor samples (top 3 anchors), and country if available.
-   - Classify by link type: editorial, resource list, directory, forum/UGC.
+4. **Enrichment (top 25 candidates only)** `backlinks_bulk_ranks`, `backlinks_anchors`
+   - Cap enrichment at the top 25 candidates by rank to control call count. `backlinks_domain_intersection` already returns Domain Rank, so only call `backlinks_bulk_ranks` (one call, all 25 targets) if you need fresher/rescaled ranks.
+   - For anchor samples, call `backlinks_anchors` on each candidate (top 3 anchors) — top 25 only. Classify by link type: editorial, resource list, directory, forum/UGC.
 
 5. **Relevance scoring**
    - Score each candidate on: (a) topical overlap (use domain homepage title/meta via WebFetch), (b) Domain Rank, (c) intersection count, (d) link-type preference.
@@ -41,58 +46,24 @@ Produce an actionable link-prospecting list: domains linking to your top competi
 
 ## Output format
 
-Create a folder `seo-backlink-gap-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-backlink-gap-{target-slug}-{YYYYMMDD}/` with:
 
 ```
-seo-backlink-gap-{target-slug}-{YYYYMMDD}/
-├── 01-target-baseline.md
-├── 02-competitor-{domain}-refs.md   # one per competitor
-├── 03-intersection-raw.md
-├── prospects.csv                     # machine-readable output
-└── REPORT.md
+output/seo-backlink-gap-{target-slug}-{YYYYMMDD}/
+├── prospects.csv          # machine-readable output
+├── REPORT.md              # primary deliverable
+└── evidence/
+    └── intersection-raw.md   # raw backlinks_domain_intersection response + any relaxations applied
 ```
 
-`REPORT.md` follows this shape:
-
-```markdown
-# Backlink Gap: {target} vs {competitors}
-
-## Filters applied
-- Dofollow only: yes
-- Min Domain Rank: {n}
-- Min intersection: links to at least {n} of {total} competitors
-
-## Top 25 prospects
-
-| # | Referring domain | DR | Links to | Sample anchor | Link type | Angle | Score |
-|---|---|---|---|---|---|---|---|
-| 1 | example.com | 68 | {3 of 5} | "best yoga studios" | Resource list | Topical fit | 92 |
-| 2 | ... | ... | ... | ... | ... | ... | ... |
-
-## Outreach brief
-- Segment these prospects into 3 batches by link type and pitch each batch with a tailored template.
-- For editorial links: pitch a unique-angle comparison or original research.
-- For resource lists: suggest inclusion with a specific anchor.
-- For directories: apply directly.
-- For forums/UGC: engage before pitching; these are not cold-outreachable.
-
-## Counts
-- Total unique referring domains across competitors: {n}
-- Passed filters: {n}
-- Already linking to {target}: {n} (excluded)
-- Final prospects: {n}
-
-## Files
-- prospects.csv: import to Hunter.io, Pitchbox, or your outreach tool
-- Per-competitor raw data: 02-competitor-*.md
-```
+`REPORT.md` opens with the filters applied (dofollow / min Domain Rank / min intersection, plus any step-3 relaxations), a Top-25 prospects table (domain · DR · links-to count · sample anchor · link type · angle · score), an outreach brief (batch by link type), and counts. Full skeleton: `templates/report.md`.
 
 `prospects.csv` columns:
 `rank,referring_domain,domain_rank,links_to_count,links_to_competitors,sample_anchor,link_type,outreach_angle,score`
 
 ## Tips
 
-- DataForSEO API rate limit: 10 requests per second. With 5 competitors, expect 5-10 seconds of sequential API time plus enrichment.
+- The gap itself is a single `backlinks_domain_intersection` call regardless of competitor count (up to 20 targets) — no per-competitor fan-out. The only loop is anchor enrichment on the top 25, paced under the 10 req/s rate limit.
 - Do not include subdomains of already-linked domains in the prospect list. If news.example.com links to the target but blog.example.com links only to competitors, treat as already-linked unless the user asks otherwise.
 - The "Angle" column is the most important output for outreach. Keep it specific: "Their 'best X tools' list from 2024 is out of date and doesn't include you" beats "topical fit".
 - Exclude obvious spam/low-quality domains even if they pass Domain Rank thresholds. Use the WebFetch step to sanity-check any prospect scoring above 80.

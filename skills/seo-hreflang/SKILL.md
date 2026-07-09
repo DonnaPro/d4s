@@ -14,13 +14,14 @@ Validate hreflang implementations on a multi-language or multi-region site. Surf
 
 - DataForSEO MCP server connected.
 - Claude's `WebFetch` tool available (fallback when Firecrawl is unavailable).
-- User provides: a target domain (e.g. `example.com`). Optional: explicit list of representative pages to inventory; explicit sitemap URL if not at `/sitemap.xml`.
+- User provides: a target domain (e.g. `example.com`). Market: per `CLAUDE.md` defaults (UK unless the user specifies otherwise). Optional: explicit list of representative pages to inventory; explicit sitemap URL if not at `/sitemap.xml`.
 - **Predecessor (recommended):** `seo-technical-audit` or `seo-sitemap` already run on this domain.
 
 ## Process
 
-1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` for the canonical 3-stage preflight (Firecrawl availability, Google APIs). Skill-specific notes:
+1. **Validate target & preflight.** See `skills/seo-firecrawl/references/preflight.md` (budget guard, Firecrawl availability, Google APIs) and `CLAUDE.md` (market defaults, cost discipline). Skill-specific notes:
    - Normalise domain (strip protocol, trailing slash) before continuing.
+   - Typical DataForSEO calls for this skill: ~3–8 (on-page instant pages + relevant pages).
    - Firecrawl: optional with WebFetch fallback, ~6 Firecrawl credits if available (hard cap). When available, step 3 (per-URL hreflang inventory) runs on homepage + 5 representative pages with `formats: ["rawHtml"]`. Without Firecrawl, step 3 falls back to WebFetch — coverage is degraded because WebFetch returns markdown only and silently strips `<link rel="alternate">` tags from `<head>`. Pass `--no-firecrawl` to force WebFetch even when Firecrawl is available.
    - Google APIs: tier 1 (GSC) unlocks step 5 (GSC verification of hreflang-targeted alternates). See `skills/seo-google/references/cross-skill-integration.md` for the full enrichment contract.
 
@@ -28,20 +29,14 @@ Validate hreflang implementations on a multi-language or multi-region site. Surf
    - Use `on_page_instant_pages` on the homepage and representative pages to extract on-page signals including hreflang tags.
    - Surface hreflang errors — typical issues: missing return tags, invalid language codes, missing x-default, canonical mismatches, missing self-reference.
    - For each significant hreflang issue (count ≥ 1), enumerate the affected URLs from the results.
+   - **Error handling:** if `on_page_instant_pages` returns a broken or blocked response for a page (HTTP 403, WAF/anti-bot block, or a JS-walled shell with no `<head>` content), don't retry — fall back to the Firecrawl `rawHtml` scrape from step 3 as the primary evidence for that page and note the substitution in `01-audit-hreflang-issues.md`.
    - Persist to `01-audit-hreflang-issues.md` and feed into `hreflang-issues.csv`.
 
 3. **Per-URL hreflang tag inventory** `mcp__firecrawl-mcp__firecrawl_scrape` (preferred) / `WebFetch` (fallback)
-   - **Sample selection:** homepage + up to 5 representative pages from `dataforseo_labs_google_relevant_pages` (sort by traffic descending; bias toward pages on different language paths if the URL structure exposes them — `/en/`, `/fr/`, `/de/`, etc.).
+   - **Sample selection:** homepage + up to 5 representative pages from `dataforseo_labs_google_relevant_pages` with `limit: 10` and `order_by: ["metrics.organic.etv,desc"]` (traffic descending — never pull unbounded). Bias toward pages on different language paths if the URL structure exposes them — `/en/`, `/fr/`, `/de/`, etc.
    - **Firecrawl path** (1 credit per URL, ~6 total): call `firecrawl_scrape(url=..., formats=["rawHtml"])`. Pin `rawHtml` — the default `html` post-processing strips `<link rel="alternate">` on many sites. Parse every `<link rel="alternate" hreflang="…" href="…">` from the `<head>`. Capture: source URL, hreflang attribute, href, and whether it's self-referencing.
    - **WebFetch fallback** (no Firecrawl): try fetching each URL and extracting hreflang from the markdown response. WebFetch frequently returns markdown that has stripped `<head>` link tags, so this path will under-report. Note in `HREFLANG-REPORT.md`: `Per-URL inventory: degraded coverage — Firecrawl not installed; some hreflang tags may be missed.`
-   - **Apply validation rules** (see references/validation-rules.md for the full list):
-     - **Self-referencing tag:** the page's own URL must appear in its own hreflang set.
-     - **Return tags:** every alternate link must reciprocate. If page A lists B as `fr`, page B must list A as `en` (or whichever).
-     - **x-default:** at least one alternate per set must use `hreflang="x-default"`.
-     - **Language-region code validation:** every value must be a valid ISO 639-1 language (optionally followed by `-` and an ISO 3166-1 Alpha-2 region). Common errors caught: `eng` (use `en`), `jp` (use `ja`), `en-uk` (use `en-GB`), `es-LA` (no such ISO region).
-     - **Conflict detection:** the same hreflang value (e.g. `de-DE`) appearing on multiple distinct URLs is a conflict — Google ignores conflicting sets.
-     - **Canonical alignment:** if the page has `<link rel="canonical">`, it must match the page's own URL (or its self-referencing hreflang URL). Hreflang on a non-canonical page is silently ignored by Google.
-     - **Protocol consistency:** all URLs in a set must share the same scheme (HTTPS preferred).
+   - **Apply every rule in `references/validation-rules.md`** — load that file for the full per-issue table (detection logic, severity, suggested fix).
    - Persist to `02-per-url-hreflang.md` and append findings to `hreflang-issues.csv`.
 
 4. **Sitemap-level hreflang** (defer to `seo-sitemap` where appropriate)
@@ -57,7 +52,7 @@ Validate hreflang implementations on a multi-language or multi-region site. Surf
 
 5. **GSC verification of hreflang-targeted alternates** *(only if google-api.json is present, tier ≥ 1)*
    - For each unique domain that appears as an `href` target in the hreflang sets (e.g. `example.com`, `example.de`, `example.fr`), confirm GSC verification:
-     `python3 scripts/gsc_query.py --property "{property}" --json` (a status-only check; just confirm the property responds without `PROPERTY_NOT_VERIFIED`).
+     `python E:\DonnaProSEO\scripts\gsc_query.py --property "{property}" --json` (a status-only check; just confirm the property responds without `PROPERTY_NOT_VERIFIED`).
    - **Why this matters:** Google explicitly recommends verifying every domain that participates in a cross-domain hreflang setup. If `example.de` is listed as an alternate but isn't verified in this account, the hreflang signal is weakened and you can't see how Google interprets it.
    - Surface in `HREFLANG-REPORT.md` as a section "## GSC verification of hreflang targets" with one row per target domain: `verified` / `not verified` / `not configured`.
    - If property not verified for a target domain: list it as a fix at Medium severity ("Verify {domain} in Google Search Console — required for cross-domain hreflang trust").
@@ -70,10 +65,10 @@ Validate hreflang implementations on a multi-language or multi-region site. Surf
 
 ## Output format
 
-Create a folder `seo-hreflang-{target-slug}-{YYYYMMDD}/` with:
+Create a folder `output/seo-hreflang-{target-slug}-{YYYYMMDD}/` (per `CLAUDE.md` § Output conventions) with:
 
 ```
-seo-hreflang-{target-slug}-{YYYYMMDD}/
+output/seo-hreflang-{target-slug}-{YYYYMMDD}/
 ├── 01-audit-hreflang-issues.md   (on-page analysis findings filtered to hreflang)
 ├── 02-per-url-hreflang.md         (per-URL <link rel="alternate"> inventory + validation findings)
 ├── 03-sitemap-hreflang.md         (sitemap-level hreflang validation; defer details to seo-sitemap)
@@ -85,85 +80,20 @@ seo-hreflang-{target-slug}-{YYYYMMDD}/
 └── HREFLANG-REPORT.md             (PRIMARY: verdict + top fixes table)
 ```
 
-`HREFLANG-REPORT.md` follows this shape:
+`HREFLANG-REPORT.md` structure (load `templates/report.md` when writing the deliverable):
 
-```markdown
-# Hreflang Audit: {domain}
-
-> Audit date {YYYY-MM-DD} · Sample size: {n} URLs · Languages detected: {comma-separated list}
-
-## Verdict: {PASS | NEEDS-FIX | BROKEN}
-
-Reasoning: {1–2 sentences anchored in concrete numbers from the data}.
-
-## Summary
-
-| Source | Findings | Severity breakdown |
-|---|---|---|
-| On-page analysis (on_page_instant_pages) | {n} | Critical: {n} · High: {n} · Medium: {n} · Low: {n} |
-| Per-URL HTML inventory | {n} | … |
-| Sitemap | {n} | … |
-
-## Top fixes (impact-ranked)
-
-| # | URL | Issue | Severity | Fix |
-|---|---|---|---|---|
-| 1 | {URL} | {issue code} | {severity} | {one-line fix} |
-| 2 | … | … | … | … |
-| ... up to 10 |
-
-## Languages detected
-
-| Language | URL count | Self-ref OK | Return tags OK | x-default OK |
-|---|---|---|---|---|
-| en-US | {n} | ✓ / ✗ {count} | ✓ / ✗ | ✓ / ✗ |
-| de-DE | {n} | … | … | … |
-| ... |
-
-## Per-URL inventory ({n} URLs sampled)
-
-| URL | Alternates | Self-ref | x-default | Notable issues |
-|---|---|---|---|---|
-| {URL} | {n} | ✓/✗ | ✓/✗ | {short text} |
-| ... |
-
-## Sitemap-level hreflang
-- xhtml namespace declared: {✓/✗}
-- URLs with hreflang alternates: {n}
-- Self-reference within sitemap: {✓ all / ✗ {count} missing}
-- Return tags within sitemap: {✓ all / ✗ {count} missing}
-- Per-URL HTML vs sitemap consistency: {✓ all match / ✗ {count} mismatched}
-- Full sitemap-vs-audit analysis: see `seo-sitemap` (orphans, broken entries, lastmod).
-
-## GSC verification of hreflang targets
-
-| Domain | Verified | Notes |
-|---|---|---|
-| {domain1} | ✓ / ✗ | {note if unverified} |
-| ... |
-
-(Or: `GSC verification: not configured (run bash extensions/google/install.sh)`.)
-
-## Coverage notes
-
-- Per-URL inventory tool: {Firecrawl rawHtml | WebFetch fallback (degraded — some hreflang tags may be missed)}.
-- Pages sampled: homepage + {n} representative pages (selection: top traffic from `dataforseo_labs_google_relevant_pages`).
-
-## Apply
-
-- Walk `hreflang-issues.csv` row-by-row; each row is one specific change (URL + issue + fix).
-- After applying changes, re-run `seo-technical-audit` to refresh findings, then re-run this skill to verify.
-```
+- Header line (audit date, sample size, languages detected) + **Verdict** (PASS / NEEDS-FIX / BROKEN) with data-anchored reasoning.
+- **Summary** table (findings per source with severity breakdown) + **Top fixes** table (impact-ranked, up to 10).
+- **Languages detected** and **Per-URL inventory** tables (self-ref / return tags / x-default per language and per sampled URL).
+- **Sitemap-level hreflang** checklist + **GSC verification of hreflang targets** table (or "not configured" note).
+- **Coverage notes** (tool used, degraded-path caveats) + **Apply** instructions pointing at `hreflang-issues.csv`.
 
 `hreflang-issues.csv` columns: `url,issue_code,severity,fix,source` where `source` is one of `audit | html | sitemap | gsc`.
 
 ## Tips
 
 - Respect DataForSEO API rate limit: 10 req/sec.
-- **Verdict heuristic:**
-  - **PASS:** zero Critical findings; ≤ 2 High findings; sample URLs all have self-reference, x-default, and reciprocal return tags; all language-region codes valid; canonical aligns with self-ref hreflang.
-  - **NEEDS-FIX:** any High finding; or > 5 Medium findings; or any one of (missing x-default, missing return tags on > 25% of sampled pages, language-region code error, sitemap-vs-HTML mismatch).
-  - **BROKEN:** any Critical finding; or hreflang attempted but no self-reference on the homepage; or canonical pointing elsewhere on a page that nonetheless emits hreflang (entire set is ignored by Google); or > 50% of sampled URLs missing return tags.
+- **Verdict heuristic:** see `references/validation-rules.md` § "Verdict heuristic" (kept next to the severity definitions it depends on).
 - Anchor every claim in `HREFLANG-REPORT.md` to a row in `hreflang-issues.csv`. If a stakeholder questions the verdict, walk them through the CSV.
 - For sites with > 50 language variants per page, the per-URL HTML implementation bloats the `<head>` — recommend the sitemap-based implementation instead. Don't generate code; the deliverable is diagnostic, not code-gen.
 - The skill **does not** assess cultural adaptation, content parity, or locale formatting. Those are translation/QA concerns; they're orthogonal to whether hreflang itself is technically correct. If the user wants those, point them at the translation team — this skill answers "is the technical hreflang signal working?", not "is the localised content good?".

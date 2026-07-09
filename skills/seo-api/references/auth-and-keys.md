@@ -83,7 +83,7 @@ If calling the DataForSEO REST API directly (outside of MCP):
 curl -X POST 'https://api.dataforseo.com/v3/serp/google/organic/live/advanced' \
   -u 'your@email.com:your_api_password' \
   -H 'Content-Type: application/json' \
-  -d '[{"keyword": "seo tools", "location_code": 2840, "language_code": "en"}]'
+  -d '[{"keyword": "seo tools", "location_code": 2826, "language_code": "en"}]'
 ```
 
 `-u` in curl sends Basic Auth. In code, set the `Authorization` header manually:
