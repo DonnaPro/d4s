@@ -204,7 +204,15 @@ There is also an empty *"Example:"* heading under Images with nothing beneath it
 | How to hire UK | **Excellent** | **Best of the batch** | `[LINK →]` convention not used | Dead REC source |
 | When to hire | Good | **Thinnest: 2 sources** | "can not" in two headings | **Unsourced, self-contradicting DonnaPro claims** |
 
-On the Future Ventures source behind the three new stage sections in the startup-founders edit: I checked it properly. The page is a substantive stage-by-stage analysis, and two of her three claims are supported directly by its tables ("Administration and Operations 15-20%" at stage one; strategic planning benchmark of 15-20% at $1M-$3M). The third, "the founder's week should now be 50-60% strategic planning and people leadership", is her own sum of two of their categories, and their numbers actually add to 55-65%. Present it as her calculation or use their figures.
+On the Future Ventures source behind the three new stage sections in the startup-founders edit, checked in full:
+
+**Her reading of it is accurate.** Two claims are exact quotes from its tables ("Administration and Operations 15-20%" at stage one; strategic planning benchmark 15-20% at $1M-$3M). The third, "50-60% strategic planning and people leadership", is her own sum of two of their categories, and the arithmetic is right: the stage-four row benchmarks People and Team at 25-30% and Strategic Planning at 25-30%.
+
+**But the source is not citable under this guide.** The page carries no methodology, no sample size and no statement of where its numbers come from, and it links to no external source at all. Section 5 of the style guide rules out "a page that itself has no source". It is one advisory firm's benchmark model, published by a single author, presented as fact. All three statistics in that section rest on it.
+
+**And the headcount framing is hers, not the source's.** The page is organised purely by revenue and contains the words "employee", "headcount" and "team size" zero times. Her "once the company passes 30-50 people", and the FAQ built on that band, have no basis in it.
+
+Recommended fix: cut the three percentages. The section's job is to route founders to the right provider by stage, and the qualitative logic does that work on its own. The statistics are decoration, and removing them removes the whole problem.
 
 ---
 
