@@ -56,7 +56,7 @@ It is also the stronger sales position. Right now a buyer searching "virtual PA"
 >
 > If what you need is a few hours of clearly defined tasks each week, an hourly service will serve you better and cost less. The comparison further down is honest about that. If you want the whole thing handled by someone who does not need managing, that is what we do.
 
-228 words. The link to `/virtual-executive-assistant/` stays, so the internal link is preserved, but it now reads as "the same service under the other name" rather than "go here instead".
+224 words. The link to `/virtual-executive-assistant/` stays, so the internal link is preserved, but it now reads as "the same service under the other name" rather than "go here instead".
 
 **Keep the pricing comparison table further down.** Hourly PA service, freelance PA, DonnaPro. That is the honest comparison, and it already does the job the tier table was attempting badly: it tells a buyer who only wants cheap hours to go elsewhere, without telling them the DonnaPro product is junior.
 
@@ -82,7 +82,7 @@ If you would rather change the card title instead, anything that does not imply 
 
 > In the UK market the two terms are used almost interchangeably, and most providers simply pick one. Where a real difference exists it is depth: how much the assistant decides on your behalf rather than waiting to be told. DonnaPro does not run two tiers. The same assistant, the same standard and the same price apply whether you arrived looking for a virtual PA or an executive assistant.
 
-64 words, inside the 40 to 90 limit. Copy it into the `FAQPage` schema character for character, as the current answer is.
+68 words, inside the 40 to 90 limit. Copy it into the `FAQPage` schema character for character, as the current answer is.
 
 ---
 
