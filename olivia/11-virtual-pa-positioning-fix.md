@@ -92,6 +92,51 @@ No edit needed. Once the page says the PA and the EA are the same person at Donn
 
 ---
 
+### Change 5 - make the task list DonnaPro's offer, not a market survey
+
+Added 14 September 2026, after the first four changes went to staging.
+
+The task section still describes the category rather than the service. Compare the two pages:
+
+| Page | Sub-line under the task heading |
+|---|---|
+| `/virtual-executive-assistant/` | "**Our executive assistants take over** the operational workload that keeps you stuck in the weeds. Here is what that looks like in practice..." |
+| `/virtual-pa/` | "These are the eight areas **UK buyers most consistently expect** a virtual PA to own." |
+
+The first sells a service. The second reports what the market considers standard, which positions DonnaPro as meeting a baseline rather than exceeding one. It is the same defect as the tier table: research register in offer copy.
+
+The gap is measurable across the page. `/virtual-pa/` says "DonnaPro" 14 times against the EA page's 25, and "your PA" or "your assistant" 11 times against 21.
+
+**H2, optional but recommended:**
+
+| From | To |
+|---|---|
+| What Your Virtual PA `<em>`Handles`</em>` | What Your DonnaPro Virtual PA `<em>`Handles`</em>` |
+
+This diverges from the EA page, which carries no brand in the equivalent heading. The divergence is worth it here, and the EA page could follow later.
+
+**Sub-line, required. Replace:**
+
+> These are the eight areas UK buyers most consistently expect a virtual PA to own. Most clients hand over the first three in week one and add the rest as trust builds.
+
+**With:**
+
+> Your DonnaPro assistant takes over the operational layer of your working week. Here are the eight areas that covers, handled at the level you would expect from a senior executive assistant rather than a task-taker. Most clients hand over the first three in week one and add the rest as trust builds.
+
+52 words. It does three jobs the current line does not: it names DonnaPro as the provider, it signals the service level, which is what justifies the price, and it carries the PA-to-EA merge into the section where a buyer is deciding what they actually get. The final sentence is kept because it is concrete and specific to how DonnaPro onboards.
+
+**What stays as it is.** The eight task cards themselves are already written in DonnaPro voice ("Your PA reads your inbox before you do"). No change needed there.
+
+**Market-register copy that should stay.** Three other passages describe the market, and all three are doing legitimate work:
+
+- The "Virtual PA or Executive Assistant" section explaining that providers use the terms interchangeably. That is the section's entire purpose.
+- "Most UK virtual PA services sell you hours" in the cost section. That is competitive contrast, and it sets up why DonnaPro prices differently.
+- The FAQ answer on PA versus EA. Same reason.
+
+The task list was the only place where category language displaced offer language.
+
+---
+
 ## What does not change
 
 - The keyword targeting. `virtual pa` at 720 a month, the cluster at roughly 1,730, DonnaPro absent from all of it. That opportunity is unaffected.
