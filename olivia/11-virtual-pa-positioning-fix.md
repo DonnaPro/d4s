@@ -127,6 +127,42 @@ This diverges from the EA page, which carries no brand in the equivalent heading
 
 **What stays as it is.** The eight task cards themselves are already written in DonnaPro voice ("Your PA reads your inbox before you do"). No change needed there.
 
+---
+
+### Change 6 - add two executive-level cards, not three
+
+The eight current areas are the ones the research found buyers expect from a virtual PA. They earn the page its relevance for the term, so none of them come out. But they are also, on their own, indistinguishable from what Pink Spaghetti or The Online PA offer, which is the differentiation problem.
+
+Three cards exist on `/virtual-executive-assistant/` and not here:
+
+| On the EA page, missing here | Verdict |
+|---|---|
+| Investor & Stakeholder Relations | **Add** |
+| Project Coordination | **Add** |
+| Hiring & Team Support | Leave on the EA page |
+
+Two cards also exist here and not on the EA page: Documents and Presentations, and Expenses and Invoicing Admin.
+
+**Add two, not three.** At ten cards the PA page keeps two the EA page does not have, and the EA page keeps one this page does not. That preserves a genuine difference between the two pages. Adding all three converges them, which is the cannibalisation risk we spent the last change reducing.
+
+Nothing here is invented. The frame is one service at one standard, so anything on the EA page is by definition something a DonnaPro PA does.
+
+**Position them ninth and tenth**, at the end of the grid. The sub-line says clients hand over the first three in week one, so the grid is ordered by adoption sequence, and these are what gets delegated last. The copy below says so explicitly, which keeps the ordering self-explaining.
+
+**Card 9. Investor and `<em>`Stakeholder Communication`</em>`**
+
+> Board papers assembled before the meeting rather than the night before it. Investor updates going out on the day they are due. The quiet follow-up when someone has not replied for a fortnight. Your assistant holds the thread on the relationships that matter most, so none of them go cold because the month got busy.
+
+**Card 10. Project and `<em>`Deliverable Tracking`</em>`**
+
+> Deadlines tracked across everyone who owes you something, the chasing done without you being the one who chases, and a launch kept moving while you are in other meetings. This is where an assistant stops completing tasks and starts owning an outcome. It is also the part most founders delegate last, and usually regret waiting on.
+
+Both are 55 to 57 words, matching this page's average of 56. Neither reuses the EA page's wording, so the two pages do not duplicate.
+
+**BUILD:** two more entries in the `handles` array and two more icons in `handleIcons`, same order. A chart or trend line for card 9 and a checklist or timeline for card 10 would match the existing set. Confirm the `jb-cards--bento` grid still balances at ten rather than eight.
+
+**Why this works better than a separate "and more" block.** The new sub-line already claims the service is "handled at the level you would expect from a senior executive assistant rather than a task-taker". These two cards are the evidence for that claim. Asserting it in the sub-line and then proving it in the grid is stronger than a second section arguing the same point.
+
 **Market-register copy that should stay.** Three other passages describe the market, and all three are doing legitimate work:
 
 - The "Virtual PA or Executive Assistant" section explaining that providers use the terms interchangeably. That is the section's entire purpose.
