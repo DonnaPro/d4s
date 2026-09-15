@@ -22,13 +22,11 @@ Wikidata's notability rule requires an item to describe something "that can be d
 
 **This is the actual urgency.** Not the SEO upside, the survival of the item.
 
-### 2. The description is promotional
+### 2. The description was promotional
 
-> "premium executive assistant agency"
+**Done already.** It previously read "premium executive assistant agency". "Premium" is a marketing word and does not belong in a Wikidata description, which is meant to be neutral and only to disambiguate. On an item that is otherwise empty and obviously created by someone connected to the company, that single word invites a conflict-of-interest flag.
 
-**"Premium" is a marketing word and does not belong in a Wikidata description.** Descriptions are meant to be neutral and to disambiguate, nothing more. That single word is enough to attract a conflict-of-interest flag on an item that is already empty.
-
-**Change it to:** `executive assistant agency` or `virtual executive assistant agency based in Slovenia`.
+It now reads "virtual executive assistant agency based in Slovenia", which is correct. Nothing further needed here.
 
 ### 3. Declare the conflict of interest
 
@@ -46,9 +44,9 @@ That single sentence is most of the difference between "company owner maintainin
 
 A statement is one fact, written as a **property** and a **value**.
 
-> DonnaPro — *country* — Slovenia
+> DonnaPro  ->  *country*  ->  Slovenia
 
-In Wikidata's own shorthand that is `Q141450469 — P17 — Q215`. The item is a Q-number, the property is a P-number, and the value is often another Q-number. That is the entire model. Eight statements means eight facts like that one.
+In Wikidata's own shorthand that is `Q141450469 -> P17 -> Q215`. The item is a Q-number, the property is a P-number, and the value is often another Q-number. That is the entire model. Eight statements means eight facts like that one.
 
 ### The five kinds of value box you will meet
 
@@ -89,7 +87,7 @@ A statement with no reference is the thing that gets items deleted. Add one to e
 
 | For these statements | Use this reference |
 |---|---|
-| official website, LinkedIn, Facebook, Instagram | `https://donnapro.com` — these are self-evident facts about your own properties |
+| official website, LinkedIn, Facebook, Instagram | `https://donnapro.com`, because these are self-evident facts about your own properties |
 | country, headquarters, inception, official name, legal form, employees | Your **AJPES** business register entry. Search your company at `https://www.ajpes.si` and use the URL of your own record |
 
 The AJPES reference is the important one. A national company register is exactly the "serious and publicly available reference" the notability rule asks for, and it is the single strongest thing you can attach to this item.
