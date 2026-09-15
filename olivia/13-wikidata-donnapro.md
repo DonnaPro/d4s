@@ -40,29 +40,91 @@ That single sentence is most of the difference between "company owner maintainin
 
 ---
 
+## What a statement is, and how to add one
+
+### The concept
+
+A statement is one fact, written as a **property** and a **value**.
+
+> DonnaPro — *country* — Slovenia
+
+In Wikidata's own shorthand that is `Q141450469 — P17 — Q215`. The item is a Q-number, the property is a P-number, and the value is often another Q-number. That is the entire model. Eight statements means eight facts like that one.
+
+### The five kinds of value box you will meet
+
+This is the part that trips people up. What you type depends on the property's data type, and the box does not always make it obvious.
+
+| Data type | What the box wants | Example |
+|---|---|---|
+| **item** | Start typing a name, then pick from the dropdown. Never type a Q-number by hand | `instance of` → type "business", pick the one described as "organization undertaking commercial activity" |
+| **url** | A full address including `https://` | `official website` → `https://donnapro.com` |
+| **external-id** | Just the identifier, **not** the full URL | `LinkedIn company or organization ID` → `thedonnapro`, **not** `linkedin.com/company/thedonnapro` |
+| **time** | A date picker. Year alone is fine if that is all you know | `inception` → `2019` |
+| **quantity** | A plain number | `employees` → `40` |
+
+The external-id one causes the most errors. Pasting the whole URL into an identifier field creates a broken link on the item.
+
+### Adding your first statement, click by click
+
+1. Open `https://www.wikidata.org/wiki/Q141450469` while logged in.
+2. Scroll past the label and description box to the **Statements** heading.
+3. Click **+ Add statement**. Two empty fields appear, property on the left, value on the right.
+4. In the property field, type `instance of`. A dropdown appears. **Check the P-number reads P31** before clicking it, because several properties have similar names.
+5. Move to the value field and type `business`. Pick the entry described as "organization undertaking commercial, industrial or professional activity". That is Q4830453.
+6. Click **publish**.
+
+That is one statement. The next seven work identically.
+
+### Adding a reference, which is the part that matters
+
+A statement with no reference is the thing that gets items deleted. Add one to every statement.
+
+1. Under a published statement, click the small **0 references** link, or **add reference**.
+2. A property field appears. Type `reference URL` and pick **P854**.
+3. Paste the URL that supports the fact.
+4. Optionally click **add** underneath to add a second line, type `retrieved` (**P813**), and set today's date. This is good practice and reviewers like to see it.
+5. Click **publish**.
+
+**Which URL to use as the reference:**
+
+| For these statements | Use this reference |
+|---|---|
+| official website, LinkedIn, Facebook, Instagram | `https://donnapro.com` — these are self-evident facts about your own properties |
+| country, headquarters, inception, official name, legal form, employees | Your **AJPES** business register entry. Search your company at `https://www.ajpes.si` and use the URL of your own record |
+
+The AJPES reference is the important one. A national company register is exactly the "serious and publicly available reference" the notability rule asks for, and it is the single strongest thing you can attach to this item.
+
+### One note on speed
+
+There is a bulk tool called QuickStatements that can load many statements at once. For eight statements it is not worth learning the syntax. Do them by hand, it takes about twenty minutes including references.
+
+---
+
 ## What to fill in
 
 Work down this list. Each row is one statement.
 
 ### Core, add these first
 
-| Property | Field name | Value | Notes |
-|---|---|---|---|
-| `P31` | instance of | `Q4830453` (business) | The single most important statement. Without it the item is not "about" anything |
-| `P17` | country | `Q215` (Slovenia) | |
-| `P159` | headquarters location | `Q437` (Ljubljana) | |
-| `P856` | official website | `https://donnapro.com` | |
-| `P452` | industry | `Q25351891` (business service) | |
+| # | Property to type | P-number | What to type in the value box | Type |
+|---|---|---|---|---|
+| 1 | instance of | `P31` | `business`, pick "organization undertaking commercial, industrial or professional activity" (Q4830453) | item |
+| 2 | country | `P17` | `Slovenia` (Q215) | item |
+| 3 | headquarters location | `P159` | `Ljubljana`, pick the capital city (Q437), not the municipality | item |
+| 4 | official website | `P856` | `https://donnapro.com` | url |
+| 5 | industry | `P452` | `business service` (Q25351891) | item |
+
+Statement 1 is the most important. Without `instance of`, the item is not formally "about" anything and reviewers treat it as incomplete.
 
 ### Identifiers, strong for machine linking
 
-| Property | Field name | Value |
-|---|---|---|
-| `P4264` | LinkedIn organization ID | `thedonnapro` |
-| `P2013` | Facebook username | `thedonnapro` |
-| `P2003` | Instagram username | `thedonnapro` |
+| # | Property to type | P-number | What to type in the value box | Type |
+|---|---|---|---|---|
+| 6 | LinkedIn company or organization ID | `P4264` | `thedonnapro` | external-id |
+| 7 | Facebook username | `P2013` | `thedonnapro` | external-id |
+| 8 | Instagram username | `P2003` | `thedonnapro` | external-id |
 
-Those three are verified from the `sameAs` array in the live Organization schema on donnapro.com.
+**Just the username on these three. No `https://`, no `linkedin.com/company/`.** They are verified from the `sameAs` array in the live Organization schema on donnapro.com, and Wikidata builds the full link itself.
 
 ### You need to supply these, I will not guess them
 
