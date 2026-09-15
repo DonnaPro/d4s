@@ -29,11 +29,27 @@ I also cut Version 1 from roughly 600 words to 420. At 600 the section dominates
 | # | Anchor text | Target | Why |
 |---|---|---|---|
 | 1 | DonnaPro, the virtual assistant agency | `https://donnapro.com/` | Brand plus the head term, in a construction that reads as a normal appositive rather than a keyword insert |
-| 2 | executive assistant agency | `https://donnapro.com/virtual-executive-assistant/` | The service page. It ranked for zero UK keywords at last check, so it is the page that most needs external authority |
+| 2 | executive assistant agency | `https://donnapro.com/comparison/executive-assistant-agency-vs-freelance/` | The page's own H1 is "Executive Assistant Agency vs. Freelance Platform", so the anchor matches the destination exactly and the page argues the precise claim the sentence makes |
 
 If the host insists on the literal string "DonnaPro virtual assistant agency" as the anchor, it will work, but it reads as engineered and is the kind of anchor an editor strikes. The appositive version carries the same words.
 
-**Alternative for link 2**, if you would rather not point a commercial anchor at a commercial page from a paid placement: `https://donnapro.com/guides/how-to-choose-executive-assistant-agency/`. Safer, less link value.
+### Why link 2 is not the service page
+
+The first draft pointed "executive assistant agency" at `/virtual-executive-assistant/`. That was wrong. The anchor promises an agency and the page delivers "Virtual Executive Assistant for CEOs and Founders", which is a service, not an agency. A reader clicking "agency" lands somewhere that does not answer the word they clicked, and an editor reviewing the piece sees an anchor that does not match its destination, which is the clearest signal of an inserted link.
+
+The sentence carrying the link says an agency differs from a marketplace by whether anything stands behind the individual. `/comparison/executive-assistant-agency-vs-freelance/` is titled "Executive Assistant Agency vs. Freelance Platform: The Real Comparison for CEOs". Platform is marketplace. The page's H1 opens with the exact anchor phrase and its whole argument is the sentence's claim.
+
+It also loses nothing commercially. All three agency-themed pages rank for zero UK keywords, so any of them gains equally from an external link:
+
+| Candidate | UK keywords ranking |
+|---|---|
+| `/comparison/executive-assistant-agency-vs-freelance/` | 0 |
+| `/guides/how-to-choose-executive-assistant-agency/` | 0 |
+| `/comparison/most-reliable-virtual-executive-assistant-agencies/` | 0 |
+
+So the tiebreaker is relevance, and relevance picks the agency-versus-freelance page unambiguously.
+
+**If you still want the service page to get the link**, the anchor has to change with it. Replace the final sentence with: "What separates a managed service from a marketplace is whether anything stands behind the individual, which is the model behind DonnaPro's [virtual executive assistant service](https://donnapro.com/virtual-executive-assistant/)." That matches, but it is a weaker closing line, because it ends on a product rather than on the article's own argument.
 
 ---
 
@@ -148,7 +164,7 @@ Compliance follows the same logic. Every assistant is based in the European Unio
 
 The practical terms reflect the same priorities. Coverage spans CET and GMT, so morning preparation for a London meeting and end-of-day follow-ups with a Berlin team fall inside one working day. Pricing is a flat monthly fee with no hour tracking, which removes the incentive to ration what gets delegated. Part-time and full-time support are both available, the first 60 days carry no long-term commitment, and assistants typically begin within nine days.
 
-What separates an [executive assistant agency](https://donnapro.com/virtual-executive-assistant/) from a marketplace is whether anything stands behind the individual. On that measure the difference is structural rather than cosmetic, and it is what makes the proactive partnership this article describes achievable rather than aspirational.
+What separates an [executive assistant agency](https://donnapro.com/comparison/executive-assistant-agency-vs-freelance/) from a marketplace is whether anything stands behind the individual. On that measure the difference is structural rather than cosmetic, and it is what makes the proactive partnership this article describes achievable rather than aspirational.
 
 ## Conclusion: Proactive Partners for Sustainable Productivity
 
