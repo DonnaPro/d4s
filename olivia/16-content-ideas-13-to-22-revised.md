@@ -178,6 +178,51 @@ One rule for all of them: the link goes in a real sentence in the body, with a d
 
 ---
 
+## CORRECTION, 16 September: #21 drops from first to last
+
+Zoran asked whether a book title would attract the wrong traffic, people after PDFs and summaries rather than buyers. I had been recommending #21 as the first thing to write, twice, on the strength of its rankings. He was right and I was wrong.
+
+DonnaPro has already run this exact experiment. `/ceo-insights/buy-back-your-time/` has been live, ranking position 10 in the UK, 7 in Germany and 5 in the Netherlands. PostHog says what that traffic actually does.
+
+### Progression to pricing or get-started, by landing page, last 90 days
+
+| Landing page group | Sessions | Pages per session | Reached pricing or get-started | Rate |
+|---|---|---|---|---|
+| **buy-back-your-time** | **860** | **1.11** | **5** | **0.58%** |
+| Other `/ceo-insights/` articles | 70 | 2.03 | 6 | **8.57%** |
+| `/guides/` | 2,142 | 1.27 | 32 | 1.49% |
+| `/comparison/` | 372 | 1.53 | 14 | 3.76% |
+| **`/countries/`** | **808** | **2.05** | **116** | **14.36%** |
+| Homepage | 3,903 | 2.51 | 600 | 15.37% |
+| Everything else | 19,300 | 1.59 | 663 | 3.44% |
+
+**The book-summary page is the worst-converting entry point on the entire site.** It is 26 times worse than the homepage, 25 times worse than the country pages, and six times worse than the site average. At 1.11 pages per session, 97 per cent of its visitors read one page and leave.
+
+The comparison that settles it is the second row. Other `/ceo-insights/` articles, same section, same format, same author, convert at **8.57 per cent**, fifteen times better. So this is not "editorial content does not convert". It is specifically the book-title traffic that is worthless.
+
+### The delayed-value defence also fails
+
+The fair counter-argument is that book traffic builds brand awareness which pays later. It does not:
+
+| First landing | People | Returned another day | Rate |
+|---|---|---|---|
+| **buy-back-your-time** | 781 | 25 | **3.2%** |
+| `/countries/` | 697 | 46 | 6.6% |
+| `/guides/` | 1,845 | 101 | 5.47% |
+| Everything else | 18,777 | 1,788 | **9.52%** |
+
+Lowest return rate of any group, a third of the site average. People come for the book, get the summary, and never come back.
+
+### What this means
+
+**#21 moves from first to last, or off the list.** Writing a second book summary would add volume to the worst-performing segment the site has. It would look like a success in Google Search Console, 898 pageviews against 98 for one of the best commercial pages, and produce almost nothing.
+
+The one honest argument left for it is domain authority: the page does rank top-ten in three markets, and that is not nothing. But it is an indirect benefit that cannot be banked, and it does not justify being first in the queue.
+
+**Revised order:** everything that was ranked 2 to 9 moves up one, and the country-page work below moves to the top.
+
+---
+
 ## Two things worth more than items 6 to 9
 
 **`/countries/ireland/` sits at position 8 on a 720/mo term** with no dedicated work. That is larger than any term attached to any article in this batch. Germany and the Netherlands show the same pattern smaller.
