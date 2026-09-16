@@ -208,8 +208,60 @@ So the sequence is: decide whether that page should be indexed. It is one of at 
 
 ---
 
+## Addendum, 16 September: re-run across UK, Germany, Netherlands and Ireland
+
+The first pass measured UK only. Zoran asked whether the four target markets change the answer. They do, in one direction, and the reason is more useful than the volumes.
+
+### A correction to my own method first
+
+My initial multi-market query returned zero ranking keywords for Germany and Netherlands. That was wrong. DataForSEO rejects `language_code: en` for those locations, and the error was being swallowed as a zero. Querying with `de` and `nl` shows the site ranking healthily in both. The instrument was broken, not the site.
+
+### What the site actually does in those markets
+
+| Market | Ranking keywords | Notable |
+|---|---|---|
+| United Kingdom | 32 | pos 10 `virtual assistant uk` (4,400/mo) |
+| Germany | **12** | **pos 7 `buy back your time` (260/mo)**, pos 46 `assistenz der geschäftsleitung` (320/mo) |
+| Netherlands | **9** | **pos 5 `buy back your time` (210/mo)**, pos 21 `virtual assistant company` |
+| Ireland | 2 | **pos 8 `virtual assistant ireland` (720/mo)** |
+
+Two things stand out.
+
+**The book-summary page is the site's best multi-market asset.** `/ceo-insights/buy-back-your-time/` ranks **position 5 in the Netherlands and position 7 in Germany**, both better than its position 10 in the UK. One English page, written once, ranking top-ten in three markets on a term worth 390 + 260 + 210 = **860 searches a month combined**.
+
+**`/guides/executive-assistant-to-ceo/` ranks in Germany on a German-language query**, `assistenz der geschäftsleitung`, 320/mo. That is the same page the AI citation data shows as the most-cited on the site. It is doing more work than anyone has credited it with.
+
+### English-language volume, four markets combined
+
+| Idea | UK | DE | NL | IE | Verdict change |
+|---|---|---|---|---|---|
+| **#21 E-Myth** (`e-myth revisited` + `emyth`) | 260 | 60 | 60 | 20 | **Strengthens** |
+| #13 ADHD (`adhd entrepreneur` + `founder`) | 160 | 30 | 20 | 20 | No change, UK-led |
+| #14 Private equity | 50 | 10 | 10 | 10 | **No change: still no** |
+| #15 Tech startups | 20 | 10 | 10 | 0 | **No change: still no** |
+| #17 Europe | 20 | 20 | 20 | 20 | **Weakens further** |
+| #19, #20 | 10 | 10 | 10 | 10 | No change |
+
+Treat any figure of 10 as the reporting floor rather than real demand. On that basis #14, #15, #17, #19 and #20 gain nothing at all from the wider footprint: their apparent four-market totals are three floor values stacked on one small UK number.
+
+### The three verdicts that move
+
+**#21 E-Myth is now clearly the first thing to write.** It was already the strongest on UK volume and proven format. The multi-market data shows the format does not just work, it works *better* outside the UK. E-Myth carries 170/50/50/10 across the four markets, and the control term proves DonnaPro can reach the top ten in all of them with one English article.
+
+**#17 Europe is now a definite no.** The idea was to capture pan-European demand. Tested in Europe, `virtual assistant europe` and `executive assistant europe` return floor values in Germany, the Netherlands and Ireland as well as the UK. The demand that exists is **country-specific**, not continental: `virtual assistant ireland` alone is 720/mo and `/countries/ireland/` already holds position 8 on it. Strengthening individual country pages beats writing a Europe hub.
+
+**#16 does not get the upgrade I thought it might.** Multi-market testing surfaced `executive assistant tasks` at 320 UK plus 170 Germany, which looked like a real organic floor for it. Checking the SERP killed that: eight of the nine results are job descriptions and career content, from Indeed's hiring guide, Oriel Partners, ACCA's career navigator, LinkedIn's how-to-hire guide, Hays and Reddit's r/ExecutiveAssistants. That is job-seeker intent, and chasing it would walk straight back into the careers-versus-client problem the last month was spent fixing. #16 stays a citation play, which is what the original verdict already assumed.
+
+### The finding that outranks all ten ideas
+
+Ireland is worth more than most of this batch. `virtual assistant ireland` carries **720 searches a month**, more than any term attached to any idea in the sheet, and `/countries/ireland/` already holds **position 8** on it without anyone working on it.
+
+Germany and the Netherlands both show the same pattern in miniature: a handful of positions earned passively, on pages nobody has optimised for those markets. Before writing a tenth article, it is worth asking what four hours of work on `/countries/ireland/` would return, given it is already on page one of a 720/mo term.
+
+---
+
 ## One question back to you
 
-Ideas 13, 14 and 16 all depend on anonymised client case studies, and #22 depends on the noindex decision. Before Olivia starts writing:
+Ideas 13, 14 and 16 all depend on anonymised client case studies, and #22 depends on the noindex decision.
 
-**Can EA client examples be used publicly, even anonymised, under your client agreements?** If they can, that unlocks three articles and it is the most valuable content asset you have, because no competitor can copy it. If they cannot, #16 should be dropped and #13 needs rethinking.
+**Answered 16 September: anonymised case studies are cleared for use.** That unlocks #13 and #16, and it is the most valuable content input available, because no competitor can copy it. Gather the material for both at once rather than twice.
