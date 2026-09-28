@@ -9,6 +9,25 @@ Definition applied, from the tab's own note: organic and AI-driven traffic only,
 
 ---
 
+> ## CORRECTION, 28 September 2026
+>
+> While building the landing-pages table (file 07) I found that **Google Tag Manager fires PostHog pageviews from its own domain**, `gtm-msr.appspot.com/render?id=gtm-...`. Those are not visitors to the site.
+>
+> The **"All organic visitors (any page)" column swept them in**, because it counts sessions on any entry page. The homepage column is unaffected, since none of this traffic enters on `/`.
+>
+> | Column | As delivered below | Corrected | Removed |
+> |---|---|---|---|
+> | Q2 all pages, bots excluded | 2,579 | **2,186** | 393 |
+> | Q3 all pages, bots excluded | 2,453 | **2,159** | 303 |
+> | Q2 homepage | 651 | 651 | 0 |
+> | Q3 homepage | 647 | 647 | 0 |
+>
+> The published Q2 figure of 3,050 was inflated the same way, by roughly 400 sessions, since the original method had no host filter either.
+>
+> The per-country tables below have **not** been restated. The direction of every trend holds (the noise is host-level, not country-specific), but treat the "all pages" column as roughly 13% high until re-run with `properties.$host = 'donnapro.com'`. Say the word and I will restate it.
+>
+> This does not affect files 01, 02, 03, 05 or 06: those all filter on a specific entry page or referrer, which excludes the tag-manager traffic automatically.
+
 ## Calibration: this tab validates the method
 
 My Q2 recompute on the published basis (bots included) lands at **3,046 against your published 3,050**, a gap of 4 sessions, 0.13%. The homepage column comes to **722 against 729**.
