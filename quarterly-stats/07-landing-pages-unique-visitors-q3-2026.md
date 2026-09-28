@@ -108,7 +108,40 @@ First-touch landing page, counted in **unique visitors** rather than sessions. B
 | /who-we-serve/marketing-agency-virtual-assistant/ | 3 | **0** |
 | /services/managing-investors/ | 3 | **0** |
 
-Pages below 3 visitors in both quarters are omitted. Q3 had 120 distinct landing pages in total.
+| /executive-assistant/ | 2 | **2** |
+| /who-we-serve/fintech-virtual-assistant/ | 2 | **2** |
+| /breakdown-strategy-session/ | 1 | **2** |
+| /guides/virtual-executive-assistant-cost-germany/ | 1 | **2** |
+| /who-we-serve/saas-virtual-assistant/ | 1 | **2** |
+| /virtual-assistant-careers/executive-assistant-career-growth/ | 1 | **2** |
+| /ceo-insights/ceo-buyback-audit/ | 1 | **2** |
+| /guides/executive-assistant-for-real-estate/ | 0 | **2** |
+| /ceo-insights/ceo-transfer-playbook/ | 0 | **2** |
+| /guides/inbox-calendar-travel-management-executive-assistant/ | 0 | **2** |
+| /who-we-serve/wellness-virtual-assistant/ | 0 | **2** |
+| **/blog/virtual-assistant-vs-remote-executive-assistant/)/** | 0 | **2** |
+| **/pricing/)/** | 0 | **2** |
+| /ceo-insights/buy-back-your-time (no trailing slash) | 0 | **2** |
+| /who-we-serve/media-virtual-assistant/ | 2 | **1** |
+| /get-started/hr/ | 1 | **1** |
+| /category/virtual-assistant-careers/ | 1 | **1** |
+| /who-we-serve/event-planning-virtual-assistant/ | 1 | **1** |
+| /who-we-serve/logistics-virtual-assistant/ | 1 | **1** |
+| /countries/uk/london/ | 1 | **1** |
+| /services/offers-and-proposals/ | 1 | **1** |
+| /who-we-serve/education-virtual-assistant/ | 2 | **0** |
+| /services/hr-tasks/ | 2 | **0** |
+| /ceo-insights/executive-assistant-multiple-ventures/ | 2 | **0** |
+| /who-we-serve/ai-virtual-assistant/ | 2 | **0** |
+| /executive-assistant-career-path/ | 2 | **0** |
+| /services/standard-operating-procedures-sops/ | 2 | **0** |
+| /services/marketing/ | 2 | **0** |
+| /services/research-services/ | 2 | **0** |
+| **TOTAL unique visitors (deduplicated)** | **1,981** | **1,909** |
+
+113 rows above, covering every landing page with 2 or more visitors across the two quarters combined. Pages with a single visitor in one quarter and none in the other are omitted; Q2 had 102 distinct landing pages in total and Q3 had 120.
+
+Four rows are broken URLs rather than real pages and should be fixed, not tracked: `/faq/)/`, `/pricing/)/`, `/blog/virtual-assistant-vs-remote-executive-assistant/)/`, and `/ceo-insights/buy-back-your-time` without its trailing slash.
 
 ---
 
