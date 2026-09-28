@@ -13,6 +13,10 @@ First-touch landing page, counted in **unique visitors** rather than sessions. B
 | Sessions | 2,184 | 2,147 |
 | Distinct landing pages | 102 | **120** |
 
+**Careers exclusion is session-wide, not landing-page-wide.** A session is dropped if it touched any careers page at any point, even if it landed on `/pricing/` and only browsed careers later. Pattern: `/careers*` or `/bravo/careers*`.
+
+Verified complete: widening the pattern to also catch `/virtual-assistant-careers/`, `/category/virtual-assistant-careers/` and `/executive-assistant-career-path/` removes only 4 more visitors per quarter (1,981 to 1,977 in Q2, 1,909 to 1,905 in Q3) and leaves the homepage row unchanged at 589 and 590. Not worth restating.
+
 **Read the totals, not the column sum.** A person who lands on the homepage in one session and on a guide in another appears in both rows. The rows therefore sum to more than 1,981 and 1,909. The deduplicated totals above are the correct headline.
 
 ---
