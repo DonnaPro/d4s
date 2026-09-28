@@ -191,6 +191,48 @@ ORDER BY q
 
 ---
 
+## Reconciliation against Search Console
+
+Search Console reports **937 clicks** to `https://donnapro.com/` for 1 July to late September. This table reports 329 Organic Search sessions. Both are correct. Here is the whole gap, measured rather than estimated:
+
+| Step | Sessions | Note |
+|---|---|---|
+| GSC clicks to the homepage, Google, all countries | **937** | What GSC shows |
+| PostHog homepage-entry sessions, Google organic, all countries | **643** | 69% of GSC |
+| ...of which inside the 17 target markets | **273** | 42% of GSC |
+| ...plus Bing, DuckDuckGo, Yahoo, Brave, Ecosia in those markets | **+56** | |
+| **Organic Search in this report** | **329** | |
+
+**Two separate things are happening, and the country filter is by far the larger one.**
+
+The 937 to 643 step is the ordinary analytics gap: ad blockers, the consent banner, visitors who bounce before the script fires, and the fact that GSC counts clicks while PostHog counts sessions, so two clicks in one visit are one session. Capturing 69% of GSC clicks is normal and healthy.
+
+The 643 to 273 step is the one that matters. **58% of the homepage's Google organic traffic comes from outside the 17 target markets**, and it is overwhelmingly job-seeker supply countries:
+
+| Outside TAM | Sessions | | Inside TAM | Sessions |
+|---|---|---|---|---|
+| Philippines | 68 | | US | 84 |
+| Slovenia | 59 | | UK | 50 |
+| Spain | 52 | | Germany | 32 |
+| Italy | 41 | | Netherlands | 24 |
+| India | 35 | | France | 21 |
+| Greece | 27 | | Switzerland | 14 |
+| Portugal | 27 | | Canada | 11 |
+| Romania | 22 | | Australia | 7 |
+| Nigeria | 22 | | | |
+| Poland | 21 | | | |
+| Croatia | 20 | | | |
+| Pakistan | 20 | | | |
+
+Spain, Italy, Greece, Portugal, Romania, Poland, Croatia and Slovakia are exactly the countries with a `/careers/location/` page. Philippines, India, Pakistan, Nigeria and Kenya are the classic virtual-assistant supply markets. This is the recruitment funnel working, showing up in the homepage's search traffic.
+
+Two things worth noting:
+
+- **Slovenia at 59 sessions is home traffic.** The project's own test-account filter excludes `SI`, but that filter is not applied in these queries because it is a UI toggle rather than part of the tab's stated rules. It sits outside the TAM either way, so it does not touch the reported figures.
+- Nothing here is broken. The report number is low relative to GSC because the tab deliberately measures buyer markets only, and most of the homepage's search traffic is not from buyer markets.
+
+---
+
 ## Decisions needed before this goes in the sheet
 
 1. **Bots in or out.** Not covered by the current rules. Recommendation: out, and restate Q2 the same way. Two thirds of this quarter's apparent growth is Googlebot and headless scrapers.
