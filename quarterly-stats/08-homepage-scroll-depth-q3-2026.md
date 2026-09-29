@@ -9,9 +9,57 @@ PostHog does record scroll depth. It lives on the `$pageleave` event as `$prev_p
 
 ---
 
-# THE TABLE
+# THE TABLE — careers visitors excluded
 
-Percentage of homepage views that scrolled **at least** this far down the page.
+Matches the careers exclusion used across the rest of the workbook: any session that touched a careers page at any point is removed. Job seekers were 32% of desktop homepage views and 35% of mobile.
+
+**Desktop: 2,625 views from 1,149 people. Mobile: 1,093 views from 660 people.**
+
+### Per page view
+
+| Checkpoint | Desktop views | % | Mobile views | % |
+|---|---|---|---|---|
+| Any view | 2,625 | 100% | 1,093 | 100% |
+| 5% | 935 | **35.6%** | 422 | **38.6%** |
+| 10% | 754 | **28.7%** | 295 | **27.0%** |
+| 25% | 483 | **18.4%** | 126 | **11.5%** |
+| 50% | 373 | **14.2%** | 68 | **6.2%** |
+| 75% | 292 | **11.1%** | 53 | **4.8%** |
+| Average scroll depth | | **16.7%** | | **10.9%** |
+
+### Per unique person
+
+| Checkpoint | Desktop users | % | Mobile users | % |
+|---|---|---|---|---|
+| Any visit | 1,149 | 100% | 660 | 100% |
+| 5% | 592 | **51.5%** | 328 | **49.7%** |
+| 10% | 485 | **42.2%** | 239 | **36.2%** |
+| 25% | 314 | **27.3%** | 103 | **15.6%** |
+| 50% | 255 | **22.2%** | 53 | **8.0%** |
+| 75% | 210 | **18.3%** | 41 | **6.2%** |
+
+Tablet: 11 views from 10 people, too small to use.
+
+### Removing job seekers moves the devices in opposite directions
+
+| Checkpoint | Desktop, all → buyers only | Mobile, all → buyers only |
+|---|---|---|
+| 5% | 35.0 → **35.6** | 43.1 → **38.6** |
+| 10% | 27.8 → **28.7** | 30.2 → **27.0** |
+| 25% | 17.2 → **18.4** | 15.1 → **11.5** |
+| 50% | 12.9 → **14.2** | 8.5 → **6.2** |
+| 75% | 10.2 → **11.1** | 6.4 → **4.8** |
+| Average | 15.7 → **16.7** | 13.3 → **10.9** |
+
+**Mobile job seekers were the deepest scrollers on the site.** Removing them cuts mobile average scroll from 13.3% to 10.9% and drops the 50% checkpoint by more than a quarter. The all-traffic mobile figures were being propped up by people reading job listings.
+
+The buyer-only reality is worse than it first appeared: only 6.2% of mobile homepage views reach halfway, against 14.2% on desktop. Desktop is more than twice as likely at every checkpoint beyond 25%. On a 36,409px mobile homepage, 68 views a quarter reach the halfway mark, so anything below that point on mobile is effectively unpublished.
+
+---
+
+# All traffic, for reference
+
+Percentage of homepage views that scrolled **at least** this far down the page, job seekers included.
 
 | Checkpoint | Desktop | Mobile |
 |---|---|---|
