@@ -26,6 +26,38 @@ Percentage of homepage views that scrolled **at least** this far down the page.
 
 Tablet is included in the data but only 19 views, too small to report: 52.6 / 36.8 / 21.1 / 15.8 / 10.5.
 
+## Absolute counts behind those percentages
+
+**Desktop: 3,860 views from 1,843 people. Mobile: 1,675 views from 1,015 people.**
+
+### Per page view
+
+| Checkpoint | Desktop views | % | Mobile views | % |
+|---|---|---|---|---|
+| Any view | 3,860 | 100% | 1,675 | 100% |
+| 5% | 1,352 | 35.0% | 722 | 43.1% |
+| 10% | 1,072 | 27.8% | 506 | 30.2% |
+| 25% | 664 | 17.2% | 253 | 15.1% |
+| 50% | 499 | 12.9% | 142 | 8.5% |
+| 75% | 395 | 10.2% | 108 | 6.4% |
+
+### Per unique person
+
+A person is counted at their deepest scroll across the whole quarter, so these run higher than the per-view figures.
+
+| Checkpoint | Desktop users | % | Mobile users | % |
+|---|---|---|---|---|
+| Any visit | 1,843 | 100% | 1,015 | 100% |
+| 5% | 884 | 48.0% | 531 | 52.3% |
+| 10% | 713 | 38.7% | 391 | 38.5% |
+| 25% | 438 | 23.8% | 194 | 19.1% |
+| 50% | 337 | 18.3% | 105 | 10.3% |
+| 75% | 280 | 15.2% | 79 | 7.8% |
+
+Tablet: 19 views from 15 people, 10 / 7 / 4 / 3 / 2 views at each checkpoint.
+
+Use per view for the sheet, since that is the standard scroll-depth convention and what Clarity reported. Use per person to answer "what share of our audience has ever read this far down".
+
 ---
 
 ## Read this alongside the numbers: the homepage is very long
